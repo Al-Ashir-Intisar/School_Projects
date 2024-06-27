@@ -1,0 +1,273 @@
+---
+title: "BERT Introduction"
+author: "Al Ashir Intisar"
+date: "4/24/2023"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+Feature vector, Word embedding, word2vec
+
+BRET generates contextualized word embedding 
+
+BERT -> Bidirectional Encoder Representations from Transformers 
+
+CLS and SEP
+
+
+Topic: Semi Supervised Learning. 
+
+There are several resources available to learn and practice semi-supervised learning using R coding language. Here are some of the best ones:
+
+"Semi-Supervised Learning with R" book by Eric Zivot: This book provides a comprehensive introduction to semi-supervised learning and covers various algorithms and techniques that can be used for semi-supervised learning. The book includes practical examples and R code to help readers understand the concepts and implement them in practice.
+
+"SemiSupervised" R package: This package provides a set of functions for semi-supervised learning in R. The package includes algorithms such as self-training, co-training, and multi-view learning, as well as tools for data preprocessing and evaluation.
+
+"R-SSL" GitHub repository: This repository contains R code and datasets for several semi-supervised learning algorithms, including co-training and self-training. The code is well-documented and easy to follow, making it a great resource for learning and implementing semi-supervised learning algorithms in R.
+
+"Semi-Supervised Learning in R" tutorial by DataCamp: This tutorial provides a step-by-step guide to semi-supervised learning in R, including data preparation, algorithm selection, and evaluation. The tutorial includes hands-on exercises and code snippets to help readers practice and apply the concepts they learn.
+
+"Semi-Supervised Learning in R" course on Udemy: This course provides a comprehensive introduction to semi-supervised learning in R. The course covers a range of topics, including data preprocessing, algorithm selection, and evaluation, and includes practical exercises and quizzes to help students test their knowledge and skills.
+
+Overall, these resources provide a great starting point for learning and practicing semi-supervised learning using R coding language.
+
+
+```{r}
+library(RSSL)
+```
+
+
+```{r}
+library(dplyr,warn.conflicts = FALSE)
+library(ggplot2,warn.conflicts = FALSE)
+
+set.seed(2)
+df <- generate2ClassGaussian(200, d=2, var = 0.2, expected=TRUE)
+
+
+
+# Randomly remove labels
+df <- df %>% 
+  add_missinglabels_mar(Class~.,prob=0.98) 
+
+# Train classifier
+g_nm <- NearestMeanClassifier(Class~.,df,prior=matrix(0.5,2))
+g_self <- SelfLearning(Class~.,df,
+                       method=NearestMeanClassifier,
+                       prior=matrix(0.5,2))
+
+
+
+# Plot dataset
+df %>% 
+  ggplot(aes(x=X1,y=X2,color=Class,size=Class)) +
+  geom_point() +
+  coord_equal() +
+  scale_size_manual(values=c("-1"=3,"1"=3), na.value=1) +
+  geom_linearclassifier("Supervised"=g_nm,
+                  "Semi-supervised"=g_self)
+
+```
+
+
+Trying it with different dataset
+
+```{r}
+library(tidyverse)
+library(caret)
+library(dslabs)
+```
+
+
+```{r}
+data("mnist_27")
+str(mnist_27)
+train_tbl <- tibble(mnist_27$train)
+train_tbl <-  train_tbl %>%
+  mutate(n=row_number())
+
+test_tbl <- tibble(mnist_27$test)
+test_tbl <-  test_tbl %>%
+  mutate(n=row_number())
+
+ggplot(train_tbl, aes(x=x_1, y=x_2, color=y))+
+  geom_point()
+
+```
+
+
+```{r}
+library(tidymodels)
+```
+
+
+```{r}
+# Randomly remove labels
+train_tbl <- train_tbl %>% 
+  add_missinglabels_mar(y~ x_1 + x_2,prob=0.10) 
+
+# Train classifier
+g_nm <- NearestMeanClassifier(y~ x_1 + x_2,train_tbl,prior=matrix(0.5,2))
+
+
+g_self <- SelfLearning(y~ x_1 + x_2,train_tbl,
+                       method=LeastSquaresClassifier,
+                       prior=matrix(0.5,2))
+
+pred <- predict(g_self, test_tbl)
+
+test_tbl|>
+  mutate(.pred = pred)|>
+  accuracy(y, .pred)
+
+classifiers <- list(
+ "Supervised"=LeastSquaresClassifier(y~ x_1 + x_2,train_tbl),
+ "EM-Soft"=EMLeastSquaresClassifier(y~x_1 + x_2,train_tbl,objective="label"),
+ "EM-Hard"=EMLeastSquaresClassifier(y~x_1+x_2,train_tbl,objective="responsibility")
+)
+
+# Plot dataset
+train_tbl %>% 
+  ggplot(aes(x= x_1,y=x_2,color=y,size=y)) +
+  geom_point() +
+  coord_equal() +
+  scale_size_manual(values=c("7"=2, "2"=2), na.value=1) +
+  geom_linearclassifier("Supervised"=g_nm, "Semi_supervised" = g_self)+
+  stat_classifier(aes(linetype=..classifier..),
+                 classifiers=classifiers)
+```
+
+
+```{r}
+library(tidyverse)
+library(rvest)
+library(robotstxt)
+```
+
+
+```{r}
+scrape_ep <- function(ep_url){
+  robotstxt::paths_allowed(ep_url) 
+  
+  content <- read_html(ep_url) %>%
+    html_nodes(".content") %>%
+    html_text()
+
+
+  speakers <- regmatches(content, gregexpr("\\w[A-Z]+:", content))|>
+    unlist()
+  speakers <- gsub(":", "", speakers)
+  
+
+  ep_title <- read_html(ep_url) %>%
+    html_nodes(".first a") %>%
+    html_text()
+
+  tibble(content, episode_tittle = ep_title)
+  
+}
+```
+
+
+```{r}
+s4_ep15 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=6375"
+s4_ep16 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=6376"
+s4_ep17 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=6377"
+s4_ep18 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=6378"
+s4_ep19 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=6379"
+s4_ep20 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=6380"
+```
+
+```{r}  
+content <- read_html(s4_ep15) %>%
+    html_nodes(".content") %>%
+    html_text()
+  
+#unlisting takes care of the list object problem   
+lines <- content|>
+  strsplit("\n")|>
+  unlist()    
+
+
+#to make a data frame
+lines <- as_tibble(lines)
+```
+
+
+```{r}
+library(tokenizers)
+library(tidyverse)
+library(tidytext)
+library(hcandersenr)
+```
+
+```{r}
+the_fir_tree <- hcandersen_en %>%
+  filter(book == "The fir tree") %>%
+  pull(text)
+
+head(the_fir_tree, 9)
+
+strsplit(lines$value[1:2], "[^a-zA-Z0-9]+")
+token_words <- tokenize_words(lines$value)
+```
+
+
+```{r}
+
+#using tidytext library to tokenize to convert it into a tibble instead of a vector
+lines%>%
+  unnest_tokens(word, value, token = "words")
+```
+
+
+```{r}
+#examples of different tokenizers 
+
+bench::mark(check = FALSE, iterations = 10,
+  `corpus` = corpus::text_tokens(hcandersen_en$text),
+  `tokenizers` = tokenizers::tokenize_words(hcandersen_en$text),
+  `text2vec` = text2vec::word_tokenizer(hcandersen_en$text),
+  `quanteda` = quanteda::tokenize_word(hcandersen_en$text),
+  `base R` = strsplit(hcandersen_en$text, "\\s")
+)
+```
+
+
+```{r}
+#example of stemming algorithm 
+
+library(SnowballC)
+
+tidy_fir_tree %>%
+  mutate(stem = wordStem(word)) %>%
+  count(stem, sort = TRUE)
+```
+
+
+```{r}
+#lemmatization examples 
+
+library(spacyr)
+spacy_initialize(entity = FALSE)
+
+fir_tree %>%
+  mutate(doc_id = paste0("doc", row_number())) %>%
+  select(doc_id, everything()) %>%
+  spacy_parse() %>%
+  anti_join(get_stopwords(), by = c("lemma" = "word")) %>%
+  count(lemma, sort = TRUE) %>%
+  top_n(20, n) %>%
+  ggplot(aes(n, fct_reorder(lemma, n))) +
+  geom_col() +
+  labs(x = "Frequency", y = NULL)
+```
+
+

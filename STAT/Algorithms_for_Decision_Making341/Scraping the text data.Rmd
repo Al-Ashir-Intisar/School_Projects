@@ -1,0 +1,206 @@
+---
+title: "Scraping the text data"
+author: "Al Ashir Intisar"
+date: "4/26/2023"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+***Necessary Library***
+
+```{r}
+library(tidyverse)
+library(rvest)
+library(robotstxt)
+```
+
+
+***Function to scrape the data***
+
+```{r}
+# scrape_ep <- function(ep_url){
+#   robotstxt::paths_allowed(ep_url) 
+#   
+#   # content <- read_html(ep_url) %>%
+#   #   html_nodes(".content") %>%
+#   #   html_text()
+# 
+# 
+#   # speakers <- regmatches(content, gregexpr("\\w[A-Z]+:", content))|>
+#   #   unlist()
+#   # speakers <- gsub(":", "", speakers)
+#   # 
+# 
+#   show_title <- read_html(ep_url) %>%
+#     html_nodes("#mw-pages .mw-category-group a") %>%
+#     html_text()
+#   
+#   decade <- read_html(ep_url)|>
+#     html_nodes("b")|>
+#     html_text()
+# 
+#   tibble(title =show_title,  decade = decade)
+#   
+# }
+```
+
+
+***url for sitcom lists from wikipedia***
+
+```{r}
+# url_1940 <- "https://en.wikipedia.org/wiki/Category:1940s_American_sitcoms"
+# sitcoms_1940s <- scrape_ep(url_1940)
+# 
+# url_1950 <- "https://en.wikipedia.org/wiki/Category:1950s_American_sitcoms"
+# sitcoms_1950s <- scrape_ep(url_1950)
+# 
+# url_1960 <- "https://en.wikipedia.org/wiki/Category:1960s_American_sitcoms"
+# sitcoms_1960s <- scrape_ep(url_1960)
+# 
+# url_1970 <- "https://en.wikipedia.org/wiki/Category:1970s_American_sitcoms"
+# sitcoms_1970s <- scrape_ep(url_1970)
+# 
+# url_1980 <- "https://en.wikipedia.org/wiki/Category:1980s_American_sitcoms"
+# sitcoms_1980s <- scrape_ep(url_1980)
+# 
+# url_1990 <- "https://en.wikipedia.org/wiki/Category:1990s_American_sitcoms"
+# sitcoms_1990s <- scrape_ep(url_1990)
+# 
+# url_2000 <- "https://en.wikipedia.org/wiki/Category:2000s_American_sitcoms"
+# sitcoms_2000s <- scrape_ep(url_2000)
+# 
+# url_2010 <- "https://en.wikipedia.org/wiki/Category:2010s_American_sitcoms"
+# sitcoms_2010s <- scrape_ep(url_2010)
+# 
+# url_2020 <- "https://en.wikipedia.org/wiki/Category:2020s_American_sitcoms"
+# sitcoms_2020s <- scrape_ep(url_2020)
+
+```
+
+
+```{r}
+# Sitcom_list <- rbind(sitcoms_1940s, sitcoms_1950s, sitcoms_1960s, sitcoms_1970s, sitcoms_1980s, sitcoms_1990s, sitcoms_2000s, 
+#                      sitcoms_2010s, sitcoms_2020s)
+# Sitcom_list <- Sitcom_list|>
+#   mutate(decade = parse_number(decade))
+# 
+# write_csv(Sitcom_list, "~/ADM_MSCS_341/ADM_MSCS_341/Spotlight/sitcom_list.csv")
+```
+
+
+```{r}
+
+# sitcom_list <- read_csv("~/ADM_MSCS_341/ADM_MSCS_341/Spotlight/sitcom_list.csv")
+# #View(sitcom_list)
+
+```
+
+Scraping best sitcom list of all time from imdb
+
+```{r}
+
+# scrape_ep <- function(ep_url){
+#   robotstxt::paths_allowed(ep_url)
+# 
+#   # content <- read_html(ep_url) %>%
+#   #   html_nodes(".content") %>%
+#   #   html_text()
+# 
+# 
+#   # speakers <- regmatches(content, gregexpr("\\w[A-Z]+:", content))|>
+#   #   unlist()
+#   # speakers <- gsub(":", "", speakers)
+#   #
+# 
+#   show_title <- read_html(ep_url) %>%
+#     html_nodes(".lister-item-header a") %>%
+#     html_text()
+# 
+#   year <- read_html(ep_url)|>
+#     html_nodes(".text-muted.unbold")|>
+#     html_text()
+# 
+#   tibble(title = show_title)
+# 
+# }
+```
+
+
+```{r}
+# list_url <- "https://www.imdb.com/list/ls069786537/"
+# title <- scrape_ep(list_url)
+# 
+# pop_sitcom <-  year[-c(1:3),] |>
+#   tibble(title)|>
+#   mutate(year = parse_number(year))|>
+#   arrange(year)
+# 
+# 
+# write_csv(pop_sitcom, "~/ADM_MSCS_341/ADM_MSCS_341/Spotlight/pop_sitcom.csv")
+```
+
+
+getting first season of "I Love Lucy"
+
+```{r}
+s1e1 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=46487"
+s1e2 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=46488"
+s1e3 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=46489"
+s1e4 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=48037"
+s1e5 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=48038"
+s1e6 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=48039"
+s1e7 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=48040"
+s1e8 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=48041"
+s1e9 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=48042"
+s1e10 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=48043"
+
+```
+
+getting first 10 episodes of "Bewitched"
+
+```{r}
+b1e1 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=65215"
+b1e2 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=65216"
+b1e3 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=65217"
+b1e4 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=65218"
+b1e5 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=65219"
+b1e6 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=65220"
+b1e7 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=65221"
+b1e8 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=65222"
+b1e9 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=65223"
+b1e10 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=65224"
+
+```
+
+getting first 10 episodes of "All in the family"
+
+
+```{r}
+a1e1 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=58803"
+a1e2 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=58804"
+a1e3 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=58805"
+a1e4 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=58806"
+a1e5 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=58807"
+a1e6 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=58808"
+a1e7 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=58809"
+a1e8 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=58810"
+a1e9 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=58811"
+a1e10 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=58812"
+
+```
+
+
+"The Simpsons"
+
+```{r}
+si1e1 <- ""
+si1e2 <- ""
+si1e3 <- ""
+
+```
+
