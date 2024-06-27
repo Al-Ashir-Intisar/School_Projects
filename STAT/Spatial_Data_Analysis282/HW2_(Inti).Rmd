@@ -1,0 +1,295 @@
+title: "Homework 2"
+author: "Al Ashir Intisar"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+Due Tuesday at 11:59pm
+*A pdf of this document is available on Moodle*
+
+SAVE A COPY OF THIS FILE TO YOUR PERSONAL FOLDER!!!!!!!!!!!!!!!!!!!
+
+
+Then change the author to your name. 
+
+#landfill data
+
+For this homework we will be examining the locations of open and closed landfills in the area in the southern US. (Mostly California).
+
+The original data are from here: https://19january2021snapshot.epa.gov/lmop/landfill-technical-data_.html
+
+```{r, include = FALSE}
+library(tidyverse)
+library(tmap)
+library(sf)
+library(ggmap)
+library(spatstat)
+library(rgdal) # to do projection step
+library(readxl)
+library(dplyr)
+
+landfilllmopdata <-read_excel("~/Academic/Spatial Data Analysis 282/Data/landfilllmopdata (1).xlsx", sheet = "LMOP Database")
+
+
+
+lf <- landfilllmopdata %>%
+  dplyr::select("Longitude", "Latitude", 
+                "Current Landfill Status", 
+                "Landfill Design Capacity (tons)",
+                "Waste in Place (tons)", 
+                "State") %>%
+  rename("Status" = "Current Landfill Status",
+         "Capacity" = "Landfill Design Capacity (tons)",
+         "TonsWaste" = "Waste in Place (tons)") %>%
+  filter(!(State %in% c("GU", "VI", "HI", "AK", "PR")),
+         Status != "Unknown",
+         !is.na(Latitude))
+```
+
+
+Columns in the dataset: 
+  Longitude, Latitude
+  Status: Currently Open or closed
+  Capacity: Total Landfill Design Capacity (tons)
+  TonsWaste = Total amount of waste currently in place (tons)
+
+  
+This code creates the polygon to surround our region of interest, and a subset of the events in our region:
+```{r}
+us_map <- map_data("usa") %>%
+  filter(region == "main")
+
+us_mapsmall <- us_map %>%
+  filter(lat < 40, 
+         long < -115)
+
+us_mapsmall <- us_mapsmall %>%
+  add_row(lat = 40, long = -115) %>%
+  add_row(us_mapsmall[1, ])
+
+lfsmall <- lf %>%
+  filter(Latitude < 40,
+         Longitude < -115) %>%
+  mutate(Status = as.factor(Status)) 
+```
+  
+We are going to focus on the points in the region us_maps_small. 
+Conducting analysis on the entire US takes too much computation time, and requires modified ways of thinking about distance. 
+In this example we are going to project the study area onto a 2D plane for analysis. 
+However, when projecting somthing as large as the entire US, distances become distorted. 
+Instead, we need to use point process patterns that measure distance over the sphere (see package spatstat.sphere). 
+If that sounds cool to you, think about it as a potential final project.
+
+
+Here are a couple of simple visualizations of the data:
+```{r}
+
+ggplot(lfsmall) +
+  geom_point(aes(x = Longitude, y = Latitude, color = Status)) + 
+  coord_map()+
+  geom_path(data = us_mapsmall, aes(x= long, y = lat), color = "blue") 
+```
+
+1.  Make a cool visuatlization of these data using ggmap or tmap! 
+
+```{r}
+
+us_mapsmall_map<- get_stamenmap(
+  bbox=c(left = -124.0-.05, bottom = 32.54-.05, right = -115.0+.05, top = 40.0+.05),
+  maptype = "terrain",
+  zoom = 8)
+
+#getting rid of the sites without record of TonsWaste
+filtered_lfsmall <- filter(lfsmall, TonsWaste>=9300)
+
+#plotting the points
+ggmap(us_mapsmall_map)+
+  geom_point(data = filtered_lfsmall,
+             aes(x=Longitude, y=Latitude,color =Status, size = TonsWaste))+
+  theme_classic()+
+  scale_color_manual(labels=c("Closed Landfill", "Open Landfill"),
+                     values=c("red", "purple"))+
+  ggtitle("Landfills in California Area") +
+  xlab("Longitude") + 
+  ylab("Latitude")+
+  labs(color="Status of the Landfill.", size = "Existing waste (Tons)")
+```
+
+Note: to use tmap, you will need to convert the objects to sf oobjects
+
+```{r}
+lfsmall.sf <- st_as_sf(lfsmall, coords = c("Longitude", "Latitude"))
+
+us_mapsmall.sf <- us_mapsmall %>% st_as_sf(coords = c("long", "lat")) %>% 
+summarise(geometry = st_combine(geometry)) %>%
+st_cast("POLYGON") %>%
+  st_make_valid()
+
+tm_shape(us_mapsmall.sf) + 
+  tm_borders() +
+tm_shape(lfsmall.sf) + 
+  tm_dots()
+
+
+```
+
+
+```{r}
+#combining two colums for id information (designed capacity against existing wastes).
+library(tidyr)
+combined_lfsmall.sf<-unite(lfsmall.sf, Capacity_vs_existing, Capacity, TonsWaste, sep = "<-Capacity, Existing-> ")
+```
+
+
+```{r}
+#creating the interactive map. 
+tmap_mode("view")
+tm_basemap("OpenStreetMap") +
+tm_shape(us_mapsmall.sf) + 
+  tm_borders(col = "red") +
+tm_shape(combined_lfsmall.sf) + 
+  tm_dots(col = "Status", id = "Capacity_vs_existing", size = 0.1, border.col = "black", border.lwd = 2, style = "cat")+
+  tm_layout(title = "Locations of Landfills in western bay area of USA")
+
+```
+
+
+In order to use these data for point process analysis, we need to project them and turn them into a ppp object.
+```{r}
+lfxy <- project(as.matrix(lf[, c("Longitude", "Latitude")]), 
+                proj = "+proj=lcc +lat_1=48 +lat_2=33 +lon_0=-100 +ellps=WGS84")
+colnames(lfxy) <- c("x", "y")
+lf <- as_tibble(cbind(lfxy, lf))
+
+lfsmall <- lf %>%
+  filter(Latitude < 40,
+         Longitude < -115) %>%
+  mutate(Status = as.factor(Status))
+
+usxy <- as.data.frame(project(as.matrix(us_map[, c("long", "lat")]), 
+                              proj = "+proj=lcc +lat_1=48 +lat_2=33 +lon_0=-100 +ellps=WGS84")) %>%
+  rename(x = long, y = lat)
+
+
+  
+  
+usxysmall  <- as.data.frame(project(as.matrix(us_mapsmall[, c("long", "lat")]), 
+                                    proj = "+proj=lcc +lat_1=48 +lat_2=33 +lon_0=-100 +ellps=WGS84")) %>%
+  rename(x = long, y = lat)
+
+ggplot(lf) +
+  geom_point(aes(x = x, y = y, color = Status)) + 
+  coord_equal() +
+  geom_path(data = usxysmall, aes(x= x, y = y)) + 
+  labs(title = "Projected (units are m)")
+
+ggplot(lfsmall) +
+  geom_point(aes(x = x, y = y, color = Status)) + 
+  coord_equal() +
+  geom_path(data = usxysmall, aes(x= x, y = y)) + 
+  labs(title = "Projected (units are m)")
+
+lfsmaller <- lfsmall %>% dplyr::select(x, y, Status)
+
+
+lf.ppp <- as.ppp(lfsmaller, owin(poly = usxysmall))
+```
+
+
+2. First we will analyze the point pattern ignoring the mark (open/closed status). 
+
+```{r}
+lfsmaller <- lfsmall %>% dplyr::select(x, y, Status)
+lf.ppp <- as.ppp(lfsmaller, owin(poly = usxysmall))
+lf.ppp%>%plot(main="Plots of the landfills as ppp")
+```
+
+=> Visually assess the plot you made. Does the process appear to be homogenous or inhomogenous?
+  
+Ans: The plot seems to have different intensity at different locations. The intensity near the coastal area seems to be higher. This might also be because the intensity is higher near the populated city areas which happen to be near the bay. Due to different intensity at different locations inside the observed area the process appears to be inhomogenous. 
+    
+3. Plot the K function and envelope. Explain why this plot is probably not appropriate to interpret
+
+```{r}
+par(mfrow=c(1,1))
+envelope(lf.ppp, Kest) %>% plot(main= "Homogenous K function for the landfills")
+```
+
+
+Ans: From our visual observation we have observed that there are particular regions that contain more events. The observation of the k function and envelope plot suggests that there are clustering when there is a wider radius used. But this observation is not useful for interpretation because the visual observation and k test observation is conflicting and non-conclusive. 
+
+4. Create a plot showing the intensity (density) of landfills and overlay their locations.
+
+```{r}
+par(mfrow=c(1,1))
+plot(density(lf.ppp, adjust = 1)*1000000^2, main = "Density of landfills per sq. km")
+points(lf.ppp, pch = "*", col = "white")
+```
+
+
+5. Plot the inhomogenous K function and envelope. Interpret the results of this plot.
+
+```{r}
+par(mfrow=c(1,1))
+envelope(lf.ppp, Kinhom) %>% plot(main= "Inhomogenous K function for all the landfills")
+```
+
+
+Ans: The observed values are mostly outside of the envelope and almost always bellow theoretical inhomogenous values. This means that there is very little instances of clustering and the events are mostly at a distance from each other. 
+  
+6. Next we will analyze the Open landfills and Closed Landfills separately. Use `split` to plot the densities of each side by side.
+
+```{r}
+#creating seperate ppp for open landfills. 
+lfsmall_open <- lf %>%
+  filter(Latitude < 40,
+         Longitude < -115, Status == "Open") %>%
+  mutate(Status = as.factor(Status))
+lfsmaller_open <- lfsmall_open %>% dplyr::select(x, y, Status)
+lf.ppp_open <- as.ppp(lfsmaller_open, owin(poly = usxysmall))
+
+#creating seperate ppp for closed landfills.
+lfsmall_closed <- lf %>%
+  filter(Latitude < 40,
+         Longitude < -115, Status == "Closed") %>%
+  mutate(Status = as.factor(Status))
+lfsmaller_closed <- lfsmall_closed %>% dplyr::select(x, y, Status)
+lf.ppp_closed <- as.ppp(lfsmaller_closed, owin(poly = usxysmall))
+
+#plotting the density maps
+par(mfrow=c(1,2))
+plot(density(lf.ppp_open, adjust = 1)*1000^2, main = "Density of open landfills/sq. km")
+points(lf.ppp_open, pch = "*", col = "white")
+plot(density(lf.ppp_closed, adjust = 1)*1000^2, main = "Density of closed landfills/sq. km")
+points(lf.ppp_closed, pch = "*", col = "white")
+```
+
+  
+7. Plot the K function for Open landfills and Closed Landfills. Choose whether it is appropriate to use the homogenous or inhomogenous K. 
+
+```{r}
+par(mfrow=c(1,2))
+Kest(lf.ppp_open, correction="isotropic")%>% plot(main= "K function for open landfills")
+Kest(lf.ppp_closed, correction="isotropic")%>% plot(main= "K function for closed landfills")
+
+```
+
+
+Ans: In the graph the open landfills k function suggests more clustering. But the trend in the observed function for closed landfills is the same as the observed function for the open landfills. The density map also showed similar trend in the density between the two plots and the plot of them together. Therefore, it is appropriate to use inhomogenous k functions instead of homogenous k function for better understanding of the trend in clustering. 
+
+8. Plot the KCross function with envelope and the KCross.inhom function with envelope. Which plot is more appropriate to use here? Interpret that plot.
+
+```{r}
+par(mfrow=c(1,2))
+envelope(lf.ppp, Kcross) %>% plot(main= "Homogenous Kcross function")
+envelope(lf.ppp, Kcross.inhom) %>% plot(main= "Inhomogenous Kcross function")
+```
+
+
+The inhomogenous kcross plot function plot is appropriate for this situation. In the inhomogenous plot the observed kcross function remains bellow the envelope until an certain distance and after that the functions exceeds the envelope and suggests co-existance of the closed and nopen landfills.  
+  
+9. Write a few sentences about what we can conclude about landfills in this part of the United States.
+
+Ans: We an see that the graph shows that the kcross function is bellow the envelope for a certain length in the beginning but eventually it goes above the envelope. This indicates that the copen and closed landfills seems to maintain a certain distance from each other but after a certain distance they seem to cluster around each other. 

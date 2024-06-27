@@ -1,0 +1,211 @@
+---
+title: "HW5"
+author: "Laura Boehm Vock"
+date: "1/18/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+SAVE A COPY TO YOUR OWN FOLDER
+THen change the author.
+
+Due Tuesday, Jan 25.
+
+# Exercise 1
+WIPP data from southeastern New Mexico. Data from Waller and Gotway, Exercise 8.1
+Transmissivity meausures the rate of water flow through the Culebra aquifer around the site of a waste isolation pilot plant (WIPP) in southeastern New Mexico. 
+Data are collected rom 41 wells. logT is the log transmissivity. 
+
+
+```{r}
+library(tidyverse)
+library(sp)
+library(sf)
+library(tmap)
+library(spatialreg)
+library(spdep)
+```
+
+```{r}
+wipp_nm <- read_table("C:/Users/iamin/Downloads/wipp_nm.txt")
+wipp.sf <- st_as_sf(wipp_nm, coords = c("East", "North"))
+wipp.sf <- st_set_crs(wipp.sf, value = 26913)
+
+wipp.sf
+```
+
+
+1. Plot the logT values over space. (Note: I think you'll need to use "plot" mode. The CRS doesn't seem to be putting the data in the right place. This is OK for our analysis, we just need the positions of the points relative to each other, which is accurate).
+
+```{r}
+tmap_mode("plot")
+tm_shape(wipp.sf)+
+  tm_dots(col = "logT", size = .5)+
+  tm_layout(main.title = "Location of the sample wells with respect to each other and logT values.", legend.outside = TRUE)
+  
+
+```
+
+
+2. Fit the semivariogram. (Note: these coordinates are in kilometers)
+
+```{r}
+library(gstat)
+v.logT.emp <- variogram(logT~1, wipp.sf)
+v.logT.emp <- variogram(logT~1, wipp.sf, width = 1.5)
+plot(v.logT.emp, main = "Empirical Semivariogram of logT")
+
+
+v.logT.fit <- fit.variogram(v.logT.emp, 
+                            vgm("Sph", psill =3.2, nugget = 0, range = 12))
+v.logT.fit
+plot(v.logT.emp, model = v.logT.fit, main = "Fitted Semivariogram of logT")
+```
+
+
+3. The following code creates a grid. Using kriging to predict the logT values on this grid.(Note: We don't have any covariates here, and not enough data to justify fitting a trend with coordinates X and Y. Just use "logT ~ 1" as your model).
+```{r}
+st_bbox(wipp.sf)
+X <- seq(0, 26, length.out = 27)
+Y <- seq(0, 32, length.out = 33)
+grd <- expand.grid(X=X, Y=Y)
+grd_sf  <-  st_as_sf(grd, coords = c("X", "Y"), 
+                     crs = 26913)
+
+grd_sf
+
+logT.krigefit <- krige(logT ~ 1,   # model
+                       wipp.sf,   # original data
+                       grd_sf,    # locations to predict at
+                       model = v.logT.fit)   # variogram
+
+logT.krigefit
+
+```
+
+
+4. Plot the kriged values. Plot the observed data values on top in a different shape.
+
+```{r}
+tmap_mode("plot")
+tm_shape(logT.krigefit) + 
+  tm_dots("var1.pred", 
+          palette = 'Blues', 
+          title = "log transmissivity", size = 4,
+          shape=15)+
+  tm_shape(wipp.sf) +
+  tm_dots(col = "logT", shape = 17, size = 1.5)+
+  tm_layout(main.title = "Kriging Prediction of log transmissivity", legend.outside = TRUE) 
+
+
+
+```
+
+
+# Exercise 2
+
+These data include the percent of population fully vaccinated against COVID 19 and the number of cases per 100,000 residents on Dec 15, 2021. (Data since Christmas holidays is a bit unreliable becuase of reporting gaps, so I just went back a ways!)
+Data are by county for the United States (excluding Alaska, Hawaii, and Texas).
+
+```{r}
+covid <- st_read("~/Academic/Spatial Data Analysis 282/Data/covid/covid.shp")
+```
+
+
+5. To shorten your computation time, filter the data to include one state of your choice. Create a map showing the number of Covid cases per county.
+
+```{r}
+covid.fl.sf<-covid%>%
+  filter(State =="Florida")
+
+tmap_mode("view")
+tm_basemap("OpenStreetMap")+
+  tm_shape(covid.fl.sf)+
+  tm_polygons(col = "cases",title = "Covid cases per county", id = "County")+
+  tm_layout(title = "Covid cases per county in Florida")
+
+```
+
+
+6. Using ggplot, plot the relationship between covid cases per 100k and percent vaccinated. 
+
+```{r}
+ggplot(covid.fl.sf) +geom_point(aes(x = cs__100, y =prcnt_v))+
+  ylab("percent vaccinated")+
+  xlab("covid cases per 100k")
+```
+
+
+7. Using lm, create a linear regression model for covid cases per 100k with percent vaccinated as the explanatory variable. Print out  the summary to see the estiamtes and standard errors. Comment on the results.
+
+```{r}
+lm1 <- lm(cs__100 ~ prcnt_v, data = covid.fl.sf)
+summary(lm1)
+```
+
+Ans: We can see the 1Q and the 3Q values for residuals are pretty close together which indicate symetrical distribution of the data on the both side of the model. The median residual is close to 0 which indicates average outliers are not that significant. But as the r-squared value suggest the model can explain only 22% of the variables. Lastly, the p-value (.00005167) is statistically significant. 
+
+8. Using your model, find the residuals and plot them using tmap. 
+
+```{r}
+covid.fl.sf$resids <- residuals(lm1)
+tmap_mode("view")
+tm_basemap("OpenStreetMap")+
+tm_shape(covid.fl.sf) + 
+  tm_polygons("resids", 
+          palette = 'Blues', 
+          title = "residual covid cases per 100k", id = "")+
+  tm_layout(main.title = "Plot of residuals", legend.outside = TRUE) 
+
+
+```
+
+
+9. Find Moran's I for the residuals. Interpret this result.
+
+```{r}
+
+ggplot(covid.fl.sf) +
+  geom_histogram(aes(x = resids))
+
+ggplot(covid.fl.sf) +
+  geom_histogram(aes(x = log(resids)))
+
+cases_100k.nb <- poly2nb(covid.fl.sf, queen = TRUE)
+cases_100k.nbw <- nb2listw(cases_100k.nb, style = "W", zero.policy = TRUE)
+cases_100k.nbw$weights[[1]]
+
+cases_100k.moranI <- moran(covid.fl.sf$resids, 
+                       cases_100k.nbw, 
+                       n = length(cases_100k.nb), 
+                       S0 = Szero(cases_100k.nbw),
+                    zero.policy = TRUE)
+cases_100k.moranI$I
+```
+
+Ans: Moran's I value of 0.175 suggest a very weak positive spatial correlation in number of residual covid cases between neighboring counties in the state of Florida.That means there is weak likelihood of counties with closer number of covid cases to be neighbors without the influence of vaccination.
+
+10. Use the spatialreg function to fit a SAR model for covid cases per 100k with percent vaccinated as the explanatory variable. Print out  the summary to see the estiamtes and standard errors. Comment on how these results compare to your lm model in #7. 
+
+```{r}
+cases_100k.nbw <- nb2listw(cases_100k.nb, style = "W", zero.policy = TRUE)
+
+SAR1 <- lagsarlm(cs__100 ~ prcnt_v, data = covid.fl.sf, listw = cases_100k.nbw)
+
+summary(lm1)
+summary(SAR1)
+
+```
+
+There is not significant change in the residual values between the two models. The estimated coefficeints are also very close. The p-value is slightly higher in the SAR model but still statistically significant. The rho value is significantly different than the Moran's I value and indicates stronger spatial auto correlation. 
+
+11. Give an intepretation of rho in your SAR model output.
+
+Ans: The rho value (0.34999) indicates a moderate spatial correlation. This suggests that neighboring counties in florida slightly affect the covid cases when the vaccination rate is accounted for.
+
+
+
+
+
+

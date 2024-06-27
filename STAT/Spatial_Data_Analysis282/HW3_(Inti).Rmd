@@ -1,0 +1,305 @@
+---
+title: "HW3"
+author: "Al Ashir Intisar"
+date: "1/13/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+SAVE A COPY OF THIS TO YOUR STUDENT FOLDER 
+and change the author to your name.
+
+
+Submit your html file (or pdf) to Moodle by Friday at 11:59 pm.
+
+In this example, we compare the proportion of people age 18-34 who have health insurance in 2012 and 2016. This is a particularly relevant comparison since the Affordable Care Act was passed during that time, with the goal of getting more people to have health insurance. Data are recorded at the county level. These data are collected by the US Census bureau through the American Community Survey. 
+
+The data include the following variables:
+
+GEOID - Id number for county
+
+County - County name
+
+State - State name
+
+uninsured2016 - number of people age 18-34 without health insurance in 2016
+
+total2016 - number of people age 18-34 in the county in 2016
+
+uninsured2012 - number of people age 18-34 without health insurance in 2012
+
+total2012 - number of people age 18-34 in the county in 2012
+
+
+
+The data are an sf object, saved as "insurance.rds" in our data folder.
+
+# Exercise 1: Alternatives to Chloropleth
+
+1. Import the census data on health insurance coverage in 2012 and 2016.
+
+```{r}
+library(base)
+library(datasets)
+library(tidyverse)
+library(dplyr)
+library(sf)
+library(tmap)
+library(ggmap)
+library(cartogram)
+library(maptools)
+library(spdep)
+
+ins_rds = readRDS("C:/Users/iamin/Downloads/insurance.rds")
+ins_rds
+```
+
+2. Using mutate, create a new variable that is the change in percent of uninsured from 2012 to 2016 (subtract 2016 - 2012 so that a positive number indicates an increase in the percent uninsured.)
+
+```{r}
+ins_rds<- mutate(ins_rds, 
+                 percent_change = ( (uninsured2016/total2016*100)-(uninsured2012/total2012*100)))
+colnames(ins_rds)
+                 
+```
+
+
+3. Create a chloropleth map (use tmap) of the difference. Explain why a diverging color palette is appropriate here. Be sure your plot uses a diverging palette centered at 0.
+
+```{r}
+
+ins.sf <- st_as_sf(ins_rds)%>%
+st_cast("POLYGON")%>%
+  st_make_valid()
+
+us_map <- map_data("usa") %>%
+  filter(region == "main")
+us_map.sf <- us_map %>% st_as_sf(coords = c("long", "lat")) %>% 
+summarise(geometry = st_combine(geometry)) %>%
+st_cast("POLYGON") %>%
+  st_make_valid()
+
+tmap_mode("view")
+tmap_options(check.and.fix = TRUE)
+tm_basemap("OpenStreetMap") +
+tm_shape(us_map.sf) + 
+  tm_borders() +
+tm_shape(ins.sf) + 
+  tm_polygons("percent_change", midpoint = 0, palette="Spectral", id="percent_change", border.col = "black", border.alpha = .1)+
+  tm_layout(title = "Percent changes in uninsured population in US counties")
+```
+
+Ans: A diverging palette in this case will high-light counties with positive and negative values with a contrast. By using this palette we will be able to recognize better if there is any pattern in the neighboring counties. Such as whether the neighboring counties of a county with negative percent change in uninsured people have have negative values or not 
+
+4. Choose any state. Filter the data to just this state and create a chloropleth map. Using techniques from "alternatives_to_chloropleth" create an alternative visualization that accunts for population size for your state of interest. (We could do this for the entire US too, but the cartograms take forever to run). 
+
+```{r}
+
+ins_cali.sf<- ins.sf%>%
+  filter(State == "California")
+
+
+tmap_mode("view")
+tm_basemap("OpenStreetMap") +
+tm_shape(ins_cali.sf) + 
+  tm_polygons("percent_change", midpoint = -10, palette="Spectral", id="percent_change", border.col = "black", border.alpha = .2)+
+  tm_layout(title = "Percent change of uninsured population in California counties")
+
+
+ins_cali.sf
+ins_cali_cart <- cartogram_dorling(ins_cali.sf, "total2016", itermax = 5)
+tmap_mode("view")
+tm_basemap("OpenStreetMap")+
+tm_shape(ins_cali_cart)+ 
+  tm_polygons("percent_change", midpoint = 0, palette="Spectral", id="percent_change", border.col = "black", border.alpha = .1)+
+  tm_layout(title = "Cartogram of California cpounties")
+ 
+```
+
+
+# Exercise 2: Moran's I
+
+5. Using the census data for the whole US, calculate global Moran's I for the change in health insurance coverage. Interpret this value.
+
+```{r}
+
+ins_filtered.sf<- ins.sf%>%
+  filter(!is.na(percent_change))
+
+ggplot(ins_filtered.sf) +
+  geom_histogram(aes(x = percent_change))
+
+ggplot(ins_filtered.sf) +
+  geom_histogram(aes(x = log(percent_change)))
+#The histogram looks more normal without the log. 
+
+ins.nb <- poly2nb(ins_filtered.sf, queen = TRUE)
+ins.nbw <- nb2listw(ins.nb, style = "W", zero.policy = TRUE)
+ins.nbw$weights[[1]]
+
+ins.moranI <- moran(ins_filtered.sf$percent_change, 
+                       ins.nbw, 
+                       n = length(ins.nb), 
+                       S0 = Szero(ins.nbw),
+                    zero.policy = TRUE)
+ins.moranI$I
+```
+Ans: There is very weak positive correlation in percent change in health insurance coverage between neighboring counties in USA.That means there is weak likelihood of counties with close percent change in uninsured people to be neighbors. 
+
+* Note: You will need to first filter the data to exclude the missing values. For example `    `filter(!is.na(percent_change))`
+
+* You will also need option `zero.policy = TRUE` in the moran function and the moran.test function in #6 to account for counties with zero neighbors. 
+
+
+
+6. Conduct a test of significance for global Moran's I and interpret your result.
+
+```{r}
+moran.test(ins_filtered.sf$percent_change,
+           ins.nbw,
+           alternative = "greater", 
+           zero.policy = TRUE)
+
+ins.moranmc <- moran.mc(ins_filtered.sf$percent_change,
+           ins.nbw,
+           alternative = "greater",
+           nsim = 999, 
+           zero.policy = TRUE)
+
+ins.moranmc
+plot(ins.moranmc)
+```
+
+Ans: The MC simulation generates a very small p-value, 0.001. This suggests that the counties with closer percent change in uninsured people tends to be next to each other. The curve shows the distribution of Moran I values we could expect had the percent changes been randomly distributed across the counties. Our observed statistic, 0.10963, falls way to the right of the distribution suggesting that the counties with closer values are clustered.
+
+Now, had the Moran’s I statistic been negative (suggesting a dispersed pattern), you would probably want to set the alternative argument to less thus giving you the fraction of simulated I values more dispersed than your observed I value.
+
+7. Using the census data, calculate local Moran's I. Plot the local I values and the p-values. Provide interpretation of these results. 
+
+```{r}
+ins.localI <- localmoran(ins_filtered.sf$percent_change, 
+                      ins.nbw, 
+                      zero.policy = TRUE)
+ins_filtered.sf$iI <- ins.localI[, "Ii"]
+ins_filtered.sf$pvalue <- ins.localI[, 5]
+
+tmap_mode("plot")
+tm_shape(ins_filtered.sf) + 
+  tm_polygons("iI") +
+  tm_layout(title = "Local Moran's I values", frame = TRUE, legend.outside = TRUE)
+tmap_mode("view")
+tm_shape(ins_filtered.sf) + 
+  tm_polygons("pvalue", n = 5, id = "percent_change")+
+  tm_layout(main.title = "Local Moran's I P-values")
+```
+
+Ans: Positive value of Ii for each counties mean that they have similar percent (positive or negative) change in the uninsured population. And negative value means having very different percent change than the neighboring counties. Ans we can see in the I value plot that most counties have positive I values, this indicates a trend/clustering.
+
+8. Repeat the local Moran's I analysis for the state you selected in Exercise 1.
+
+```{r}
+ins_filtered_cali.sf<- ins_cali.sf%>%
+  filter(!is.na(percent_change))
+
+ins_cali.nb <- poly2nb(ins_filtered_cali.sf, queen = TRUE)
+ins_cali.nbw <- nb2listw(ins_cali.nb, style = "W", zero.policy = TRUE)
+ins_cali.nbw$weights[[1]]
+
+ins_cali.moranI <- moran(ins_filtered_cali.sf$percent_change, 
+                       ins_cali.nbw, 
+                       n = length(ins_cali.nb), 
+                       S0 = Szero(ins_cali.nbw),
+                    zero.policy = TRUE)
+ins_cali.moranI$I
+
+
+ins_cali.localI <- localmoran(ins_filtered_cali.sf$percent_change, 
+                      ins_cali.nbw, 
+                      zero.policy = TRUE)
+ins_filtered_cali.sf$iI <- ins_cali.localI[, "Ii"]
+ins_filtered_cali.sf$pvalue <- ins_cali.localI[, 5]
+
+tmap_mode("plot")
+tm_shape(ins_filtered_cali.sf) + 
+  tm_polygons("iI") +
+  tm_layout(main.title = "Local Moran's I California", frame = TRUE, legend.outside = TRUE)
+tm_shape(ins_filtered_cali.sf) + 
+  tm_polygons("pvalue", n = 5)+
+  tm_layout(main.title = "Local Moran's I p-value California", frame = TRUE, legend.outside = TRUE)
+```
+
+Ans: Similarly to the larger US map we can see trend in the counties in the state of california. 
+
+# Exercise 3: Neighbors
+
+9. Filter the insurance data to just the state of Iowa. Create a plot of the neighbors using queen = FALSE option (this is the "rook" definition). Create a plot of the neighbors using queen = TRUE. (see morans_i.Rmd for example plot).
+
+```{r}
+
+ins_iowa.sf<- ins.sf%>%
+  filter(State == "Iowa")
+
+ins_iowa.nb <- poly2nb(ins_iowa.sf, queen = FALSE)
+summary(ins_iowa.nb)
+
+# To plot the neighbors:
+ins_iowa.sp <- as(ins_iowa.sf, "Spatial")
+iowa_neighbors.sf <- as(nb2lines(ins_iowa.nb, coords = coordinates(ins_iowa.sp)), 'sf')
+iowa_neighbors.sf <- st_set_crs(iowa_neighbors.sf, st_crs(ins_iowa.sf))
+
+ggplot(ins_iowa.sf) + 
+  geom_sf(color = "white", fill="lightblue") +
+  geom_sf(data = iowa_neighbors.sf) +
+  theme_minimal() +
+  ylab("Latitude") +
+  xlab("Longitude")
+
+
+ins_iowa.nb <- poly2nb(ins_iowa.sf, queen = TRUE)
+summary(ins_iowa.nb)
+
+# To plot the neighbors:
+ins_iowa.sp <- as(ins_iowa.sf, "Spatial")
+iowa_neighbors.sf <- as(nb2lines(ins_iowa.nb, coords = coordinates(ins_iowa.sp)), 'sf')
+iowa_neighbors.sf <- st_set_crs(iowa_neighbors.sf, st_crs(ins_iowa.sf))
+
+ggplot(ins_iowa.sf) + 
+  geom_sf(color = "white", fill="lightblue") +
+  geom_sf(data = iowa_neighbors.sf) +
+  theme_minimal() +
+  ylab("Latitude") +
+  xlab("Longitude")
+```
+
+
+10. Calculate the global Moran's I for percent change in uninsured rate for Iowa under the rook definition of neighbors and the queen definition. Does the definition of neighbors change your results?
+
+```{r}
+ins_iowa_filtered.sf<- ins_iowa.sf%>%
+  filter(!is.na(percent_change))
+
+ins_iowa.nb <- poly2nb(ins_iowa_filtered.sf, queen = TRUE)
+ins_iowa.nbw <- nb2listw(ins_iowa.nb, style = "W", zero.policy = TRUE)
+ins_iowa.nbw$weights[[1]]
+
+ins_iowa.moranI <- moran(ins_iowa_filtered.sf$percent_change, 
+                       ins_iowa.nbw, 
+                       n = length(ins_iowa.nb), 
+                       S0 = Szero(ins_iowa.nbw),
+                    zero.policy = TRUE)
+
+F_ins_iowa.nb <- poly2nb(ins_iowa_filtered.sf, queen = FALSE)
+F_ins_iowa.nbw <- nb2listw(F_ins_iowa.nb, style = "W", zero.policy = TRUE)
+F_ins_iowa.nbw$weights[[1]]
+
+F_ins_iowa.moranI <- moran(ins_iowa_filtered.sf$percent_change, 
+                       F_ins_iowa.nbw, 
+                       n = length(F_ins_iowa.nb), 
+                       S0 = Szero(F_ins_iowa.nbw),
+                    zero.policy = TRUE)
+
+ins_iowa.moranI
+F_ins_iowa.moranI$I
+```
+
+Ans: Yes the value of Global Moran's I changes if the definition of neighbors is changed. Under queens definition the number of neighbors for some counties increases and thus makes the difference in the value.

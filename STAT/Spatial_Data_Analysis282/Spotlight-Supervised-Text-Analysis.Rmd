@@ -1,0 +1,355 @@
+---
+title: 'Spotlight: Supervised Text Analysis'
+author: "Al Ashir Intisar"
+date: "2023-04-27"
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 6
+editor_options: 
+  chunk_output_type: console
+---
+
+#                                             Introduction: 
+
+Drug reviews are an essential source of information for patients, healthcare providers, and researchers to make informed decisions about medication use. Analyzing drug review texts using machine learning techniques can provide valuable insights into patients' experiences, preferences, and concerns. In this class project, we will explore two popular machine learning models, Support Vector Machines (SVM) and Random Forest, for predicting the drug review type. SVM is a binary classification model that separates the data points into two classes using a hyperplane, while Random Forest is an ensemble model that combines multiple decision trees to achieve better prediction accuracy.
+
+The dataset we will be using is a Drug Review Dataset from the UCI Machine Learning Repository, which can be found at the following [link](https://archive.ics.uci.edu/ml/datasets/Drug+Review+Dataset+%28Druglib.com%29#). We will preprocess the text data by removing stop words, stemming, and tokenizing to obtain a bag-of-words representation. We will then use the SVM and Random Forest models to predict the review type, effectiveness of the drug, side effects, and overall rating. The accuracy of the models will be evaluated using cross-validation and other performance metrics such as precision, recall, and F1 score.
+
+The insights gained from this project can be used to improve patient outcomes and drug development by identifying potential adverse effects, patient preferences, and effectiveness of medications. Moreover, this project can be extended to analyze larger datasets with more advanced techniques such as deep learning and natural language processing. Overall, this project will provide a hands-on experience of using machine learning models for text classification tasks and their applications in the healthcare domain.
+                                        
+
+
+
+
+#                                             Tidying data and Pre-processing 
+
+As part of this project, I downloaded the  The dataset was already pre-divided into test and train sets but I combined them and split them into test and train again.
+
+To prepare the data for analysis, I made some minor modifications to the format of the dataset. Specifically, I merged all types of reviews into a single variable and created a separate variable to indicate the type of review using pivot_longer(). This will enable us to use the dataset to develop and test machine learning models for predicting the type of drug review based on its review content texts.
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse, quietly = TRUE)
+library(tidymodels, quietly = TRUE)
+library(kernlab, quietly = TRUE)
+library(dplyr, quietly = TRUE)
+library(broom, quietly = TRUE)
+library(gridExtra, quietly = TRUE)
+
+
+#Reading in the downloaded datasets
+drug_train <- read.csv("~/Academic/R/drug_train.csv") 
+drug_test <- read.csv("~/Academic/R/drug_test.csv")
+
+#combining the previously split dataset together 
+drug_review <- rbind(drug_test, drug_train)
+
+```
+
+# Variable Exploration  
+
+```{r}
+rating_graph <- drug_review|>
+  count(rating)|>
+  ggplot(aes(rating, n)) +
+  geom_col() +
+  labs(x = "Drug Rating (out of 10)", y = "Number of reviews")
+
+sideeffects_graph <-drug_review|>
+  count(sideEffects)|>
+  mutate(sideEffects = as.factor(sideEffects))|>
+  mutate(sideEffects = fct_relevel(sideEffects, "Extremely Severe Side Effects", "Severe Side Effects", 
+                                 "Moderate Side Effects", "Mild Side Effects", "No Side Effects"))|>
+  ggplot(aes(sideEffects, n)) +
+  geom_col() +
+  labs(x = "Side effects level of the drug", y = "Number of reviews")
+
+reviewtype_graph <-drug_review|>
+  count(review_types)|>
+  ggplot(aes(review_types, n)) +
+  geom_col() +
+  labs(x = "Side effects level of the drug", y = "Number of reviews")
+
+grid.arrange(rating_graph,sideeffects_graph, reviewtype_graph, ncol=2)
+```
+
+The number of reviews in different rating categories seems very uneven and trying to create a model to predict the rating from the review text could potentially produce a biased model. 
+
+The number of reviews in different side effects categories seems very uneven and trying to create a model to predict the side effect category from the review text will likely be a biased model as well. But I could potentially combine 'Extremely Severe Side Effects' and 'Severe Side Effects' together to have reasonably enough reviews in each category to create a non-biased model.  
+
+The distribution for reviews of different types is perfectly even. Therefore, I will try to create multinomial classification models to classify the review_type based on the review text in each of the categories.
+
+
+```{r}
+#Splitting the combined dataset into test and train.
+
+set.seed(1234)
+drug_split <- drug_review|>
+  mutate(review = str_remove_all(review, "'"))|>
+  initial_split()
+
+review_train <- training(drug_split)
+review_test <- testing(drug_split)
+
+
+```
+
+
+#                                    Text Pre-Processing
+
+As a part of the pre-processing of the data I will tockenize the drug reviews and calculate the tf_idf which gives each word in the reviews a numeric representation:
+
+The mathematical formula for calculating the TF-IDF (Term Frequency-Inverse Document Frequency) of a term in a document is:
+
+TF-IDF = TF * log(N/DF)
+
+Where:
+
+TF = the term frequency of the term in the document (i.e., the number of times the term appears in the document divided by the total number of terms in the document)
+N = the total number of documents in the corpus
+DF = the document frequency of the term (i.e., the number of documents in the corpus that contain the term)
+log() = the natural logarithm function
+The TF-IDF score measures the importance of a term in a document relative to its importance in the corpus as a whole. Terms with high TF-IDF scores are important to the document and less common in the corpus, while terms with low TF-IDF scores are less important to the document and more common in the corpus.
+
+
+```{r}
+library(textrecipes, quietly = TRUE)
+library(SnowballC, quietly = TRUE)
+
+#building the recipe of the model with text pre-processing 
+review_recipe <- recipe(review_types ~ review, data = review_train) %>%
+  step_tokenize(review) %>%
+  step_tokenfilter(review, max_tokens = 1000) %>%
+  step_tfidf(review) %>%
+  step_normalize(all_predictors())
+```
+
+# SVM Classification Model
+
+```{r}
+#specifying the svm model
+review_svm <- svm_linear() %>%
+  set_mode("classification") %>%
+  set_engine("LiblineaR")
+
+#creating a workflow for the model
+review_wf <- workflow() |>
+  add_recipe(review_recipe)|>
+    add_model(review_svm) 
+
+
+#fitting the model
+svm_fit <- review_wf %>%
+  fit(data = review_train)
+```
+
+```{r}
+#Calculating accuracy of the model to observe the performance
+augment(svm_fit, new_data = review_test)|>
+  mutate(accurate = (review_types == .pred_class))|>
+  summarise(accuracy = mean(accurate))
+
+```
+
+We have a decent accuracy of 0.759. But there are still room for improvement. Now, I will create a Lasso model and tune it for the best penalty value to observe if there is any difference in performance compared to the other models.  
+
+
+#             Lasso Classification model
+```{r}
+#lasso model specifications
+
+library(tidymodels, quietly = TRUE)
+library(glmnet, quietly = TRUE)
+
+lasso_spec <- 
+  multinom_reg(mixture = 1, penalty= tune()) %>% 
+  set_mode("classification") %>% 
+  set_engine("glmnet")
+
+#lasso workflow
+lasso_wf <- workflow() %>%
+  add_recipe(review_recipe) %>%
+  add_model(lasso_spec)
+
+#creating cross validation data for tuning the penalty argument
+set.seed(1234)
+review_fold_5 <- vfold_cv(review_train, v = 5)
+
+#creating a penalty grid 
+penalty_grid <-
+  grid_regular(penalty(range(-3, 0)), levels = 10)
+
+#tuning the model with the penalty grid
+tune_res <- tune_grid(
+  lasso_wf,
+  resamples = review_fold_5, 
+  grid = penalty_grid
+)
+
+#plotting the accuracy against the penalty value
+autoplot(tune_res)
+
+
+#extracting the best penalty
+(best_penalty <- select_best(tune_res, metric = "accuracy"))
+
+
+#creating the final fit
+review_final_wf <- finalize_workflow(review_wf, best_penalty)
+review_final_fit <- fit(review_final_wf, data = review_train)
+
+
+#Calculating accuracy of the model to observe the performance
+augment(review_final_fit, new_data = review_test)|>
+  mutate(accurate = (review_types == .pred_class))|>
+  summarise(accuracy = mean(accurate))
+
+```
+The accuracy for the lasso model is 0.757 almost the same as the accuracy of the SV model i.e. 0.759. Therefore, the lasso model is not an improvement over the SVM model for predicting the multi-class drug review types based on the text content of the reviews.  
+
+```{r}
+tidy(review_final_fit) %>% filter(estimate==0)
+
+```
+Looks like the lasso model for this multi-class prediction model did not change the coefficients of any variables (words) to 0. Therefore, it makes sense that the lasso model did not have a better performance than the svm model since it did not make mush changes to the coefficients of the variables. 
+
+# Random Forest Model 
+
+
+```{r}
+#creating the recipe
+review_recipe <- recipe(review_types ~ review, data = review_train) %>%
+  step_tokenize(review) %>%
+  step_tokenfilter(review, max_tokens = 1000) %>%
+  step_tfidf(review) %>%
+  step_normalize(all_predictors())
+
+#random forest model specification 
+forest_spec <- 
+  rand_forest(trees = 100, mtry= 100) %>% 
+  set_mode("classification") %>% 
+  set_engine("ranger",importance = "impurity")  
+
+#creating the workflow
+forest_workflow <- 
+  workflow() %>% 
+  add_recipe(review_recipe) %>% 
+  add_model(forest_spec) 
+
+#fitting the model 
+review_forest_model <- fit(forest_workflow, review_train)
+
+#analyzing the performance 
+augment(review_forest_model, review_test)|>
+  mutate(review_types = as.factor(review_types))|>
+  accuracy(truth=review_types, estimate= .pred_class)
+
+```
+The accuracy for the lasso model is 0.771 which is slightly better than the accuracy of the SV model i.e. 0.759. Probably tuning the model with variable mtry value could result in a better performing model. But due to the large size of the dataset used in this analysis I will not tune the model and leave it for future exploration.
+
+
+#       Comparision of models
+
+
+### Accuracies
+The accuracies of 0.759 for SVM, 0.757 for Lasso, and 0.711 for Random Forest suggest that SVM and Lasso models perform similarly and achieve higher accuracy than Random Forest. SVM is a linear model that tries to find the optimal hyperplane to separate the data points, while Lasso is a type of linear regression that performs L1 regularization to handle high-dimensional datasets. Random Forest, on the other hand, is an ensemble model that combines multiple decision trees to produce more accurate predictions. While Random Forest has the advantage of being able to handle noisy data and interactions between variables, it is computationally expensive and may overfit when the number of features is high. In contrast, SVM and Lasso are simpler models that are less prone to overfitting and have good interpretability. 
+
+
+### Confusion Matrix
+
+
+```{r, warning=FALSE, message=FALSE}
+#Looking at the confusion matrix to observe the performance of the svm_classification model
+svm_conf <- augment(svm_fit, new_data = review_test)|>
+  mutate(review_types = as.factor(review_types))|>
+  conf_mat(review_types, .pred_class)|>
+  autoplot(type = "heatmap")+
+  labs(title = "Confusion Matrix for SVM model")
+
+# #looking at the confusion matrix
+lasso_conf <- augment(review_final_fit, new_data = review_test)|>
+  mutate(review_types = as.factor(review_types))|>
+  conf_mat(review_types, .pred_class)|>
+  autoplot(type = "heatmap")+
+  labs(title = "Confusion Matrix for Lasso model")
+
+# #looking at the confusion matrix
+forest_conf <- augment(review_forest_model, review_test)|>
+  mutate(review_types = as.factor(review_types))|>
+  conf_mat(truth=review_types, estimate= .pred_class)|>
+  autoplot(type = "heatmap")+
+  labs(title = "Confusion Matrix for Random Forest model")
+```
+
+```{r, warning=FALSE, message=FALSE}
+library(gridExtra, quietly = TRUE)
+grid.arrange(svm_conf,lasso_conf, forest_conf,ncol=2)
+
+```
+
+We can see that our model does a decent job at predicting the types of reviews based on the review text contents on the training dataset. There are quite a few misclassification but there are no particular pair of review types that are misclassified disproportionately for the SVM model. 
+
+We can see that the lasso model does a almost a similar job at predicting the types of reviews based on the review text contents on the training dataset. There are quite a few misclassifications and looks like the benefit reviews tends to get misclassified more than the other review types. 
+
+In our random forest model we have more side-effect and benefit reviews getting misclassified than the comments reviews. But for all the three models the accuracy for the comments review type remains almost the same.
+
+
+### Variable Importance for Lasso and Random Forest Model
+
+These two models are not compatible with vip() plot to visualize the variable importance. Therefore, I will be just looking at the maximum and minimum coefficients to see which words are most important for the model. 
+
+```{r}
+#looking at the words that affect positively to the prediction for SVM model
+svm_fit|>
+  extract_fit_parsnip()|>
+  tidy() |>
+  slice_max(estimate, n = 10)
+
+#looking at the words that affect positively to the prediction for Lasso model
+review_final_fit |>
+  extract_fit_parsnip()|>
+  tidy()|>
+  slice_max(estimate, n = 10)
+
+
+```
+For both the models the top 9 positive coefficient words are the same and only 1 word is different. The coefficients of the specific words are almost the same along with their order. 
+
+```{r}
+#looking at the words that affect negatively to the prediction for SVM model
+svm_fit |>
+  extract_fit_parsnip()|>
+  tidy()|>
+  slice_min(estimate, n = 10)
+
+#looking at the words that affect negatively to the prediction of Lasso model
+review_final_fit |>
+  extract_fit_parsnip()|>
+  tidy()|>
+  slice_min(estimate, n = 10)
+
+
+```
+For both the models the top 8 negative coefficient words are the same and only 2 words are different. The coefficients of the specific words are almost the same along with their order.
+
+
+
+
+# Conslusion 
+
+In conclusion, the analysis indicates that creating a model to predict the rating from the review text or the side effect category from the review text may result in a biased model due to uneven distribution in these categories. However, combining some of the categories may result in a non-biased model. The multinomial classification models built for predicting the review type based on the review text show decent accuracy, with SVM and Lasso models performing similarly and achieving higher accuracy than the Random Forest model.
+
+It is interesting to note that the top positive and negative coefficient words are almost the same for both SVM and Lasso models, indicating the importance of these words in predicting the review type. However, both models have misclassifications, with the benefit reviews tending to get misclassified more than the other review types in the Lasso model. The accuracy of the models can be further improved by tuning the models or exploring other algorithms, but due to the large dataset, this was not done in this analysis.
+
+Overall, the results suggest that SVM and Lasso models can be used to predict the review type based on the review text content, with the top coefficient words indicating their importance. However, further analysis and model tuning may be required to improve the accuracy of the models and reduce the misclassifications.
+
+
+# Word Cited 
+
+1. UCI Machine Learning Repository. "Drug Review Dataset (Druglib.com)". https://archive.ics.uci.edu/ml/datasets/Drug+Review+Dataset+%28Druglib.com%29#
+
+2. Hvitfeldt, Emil. "Support Vector Machines." https://emilhvitfeldt.github.io/ISLR-tidymodels-labs/09-support-vector-machines.html
+
+3. Smltar. "Tokenization." https://smltar.com/tokenization.html#what-is-a-token
+
+4. Smltar. "smltar." https://smltar.com/

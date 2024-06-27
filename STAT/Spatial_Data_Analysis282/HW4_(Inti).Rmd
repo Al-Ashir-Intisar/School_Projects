@@ -1,0 +1,280 @@
+---
+title: "HW4"
+author: "Al Ashir Intisar"
+date: "1/18/2022"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+Due Tuesday at 11:59pm
+*A pdf of this document is available on Moodle*
+
+SAVE A COPY OF THIS FILE TO YOUR PERSONAL FOLDER!!!!!!!!!!!!!!!!!!!
+
+
+Then change the author to your name. 
+
+# Exercise 1: Glacier Ice Loss
+
+We will examine one glacier from Oraefajokull, Iceland. (There are accents in there, but I don't know how to make them in Rmarkdown...).
+
+The original data are in a `raster` filetype. This is a file format that is much more efficient for storing data which occur on a grid, and a CRS is attached to it.  We can use it with tmap. 
+
+This shows the number of meters of ice lost from 2011 to 2016. Negative numbers indicate glacial ice is lost (melted). At higher elevations we see some positive numbers; this is likely a temporary increase of more snowpack. 
+
+```{r}
+library(tmap)
+library(raster)
+library(tidyverse)
+library(sf)
+library(spatial)
+library(sp)
+library(gstat)
+library(ggmap)
+glacier.raster <- raster("C:/Users/iamin/Downloads/glacier.tif")
+glacier.raster
+
+tmap_mode("view")
+tm_basemap("Esri.WorldImagery") +
+tm_shape(glacier.raster) +
+  tm_raster(palette = "RdBu", n = 10, alpha = 0.9, title = "Glacier Elevation difference 2011-2026") 
+```
+
+The raster data itself has over 600,000 observations. This is much too large to fit a variogram. However, we can accurately fit a variogram using a sample of the datapoints (You might consider our raster to be areal data, but our random sample is geostatistical!)
+
+A random sample of 5000 points are in glacier_sample.csv. We can turn it into an sf object.
+
+```{r}
+glacier.df <- read_csv("C:/Users/iamin/Downloads/glacier_sample.csv")
+glacier.sf <- st_as_sf(glacier.df, coords = c("x", "y"))
+
+glacier.sf
+```
+
+This dataset includes other useful variables like the slope, aspect, and elevation. Because it was a csv file, it did NOT have a CRS associated wtih it.
+These data are a sample from the raster, so we can set the CRS to match the CRS of the raster.
+
+```{r}
+glacier.sf <- st_set_crs(glacier.sf, crs(glacier.raster))
+glacier.sf
+```
+
+
+1. Using tmap and view mode, plot the "difference" variable for our random sample of points. (use tm_dots and a similar color palette as for the raster!)
+
+```{r}
+
+tmap_mode("view")
+tm_basemap("Esri.WorldImagery")+
+tm_shape(glacier.sf)+
+  tm_dots("difference", palette="RdBu", title = "Elevation difference of random sample points")+
+  tm_layout(legend.outside = TRUE)
+
+
+```
+
+
+2. Fit an empirical semivariogram for elevation difference. Does this look strange to you?
+
+```{r}
+
+v.e_d.emp <- variogram(difference~1, glacier.sf)
+v.e_d.emp <- variogram(difference~1, glacier.sf, width = 100)
+plot(v.e_d.emp, main = "Empirical Semivariogram of elevation difference")
+v.e_d.emp
+
+v.e_d.fit <- fit.variogram(v.e_d.emp, 
+                            vgm("Exp", psill =20, nugget = 1, range = 7000))
+plot(v.e_d.emp, model = v.e_d.fit, main = "Fitted Semivariogram of elevation difference")
+
+v.e_d.fit
+```
+
+Ans: There is no convergence after numerous iterations. This results in a extra-ordinary sill value and range since without any convergence there is no sill and the range is infinite. 
+
+3. Using ggplot, plot the relationship between `difference` and `elev2011` (the elevation above sea level in 2011, meters). Describe this relationship.
+
+```{r}
+ggplot(glacier.df) +geom_point(aes(x = difference, y = elev2011, color = slope))+
+  ylab("Elevation in 2011")+
+  xlab("Elevation difference between 2011 and 2016")
+
+  
+```
+
+Ans: We can see from the plot that the elevation difference and the elevation show positive relationship. That is, as the elevation gets higher the elevation difference tends to reach a positive number. But after a certain height there seems to be no effective correlation between the two variables.  
+
+4. When there is a strong trend such as this, it is better to fit the variogram to the residuals. Briefly explain why this is.
+
+Ans: In thi case we need to fit our variogram to residuals in order to meet the first order stationary assumption required to create an effective variogram. In other words to be able to use the variogram outcomes to create an approximate model for the entire space under observation the first order stationary assumption is required. 
+
+Let's get the residuals:
+```{r}
+elev.lm <- lm(difference ~ elev2011 + I(elev2011^2), data = glacier.sf)
+glacier.sf$resids <- residuals(elev.lm)
+```
+
+
+5. Plot the residuals using tmap PLOT MODE. Does there appear to be spatial correlation in the residuals?
+
+```{r}
+tmap_mode("plot")
+tm_shape(glacier.sf) + 
+  tm_dots("resids", size = .2, title = "Residual values")
+```
+
+Ans: The points with closer values seem to cluster together which suggests that there is strong spatial correlation in the residuals.  
+
+6. Create an empirical semivariogram. Visually approximate the nugget, sill, and range values from the graph.
+
+```{r}
+v.resids.emp <- variogram(resids~1, glacier.sf)
+plot(v.resids.emp, main = "Empirical Semivariogram of residuals")
+
+```
+
+Ans: My approximations are:  nugget = 1, sill = 5, range = 4000. 
+
+7. Fit a spherical semivariogram and plot it onto the empirical semivariogram. Identify the nugget, sill, and range parameters and compare them to your approximations.  (NOTE: The output shows the nugget and partial sill values. Sill = nugget + partial sill. )
+
+```{r}
+v.resids.fit <- fit.variogram(v.resids.emp, 
+                            vgm("Sph", psill =4, nugget = 1, range = 4000))
+plot(v.resids.emp, model = v.resids.fit, main = "Fitted Semivariogram of residuals")
+
+v.resids.fit
+```
+
+Ans: The expected nugget value is higher than my approximation by 0.47. The expected psill is 0.36 lower than my approximation. And the expected range is 48 meters less than the my approximation of the range. 
+
+8. Find the value of the sill. Compare this to the variance of the residuals (in glacier.sf). Explain why this result makes sense.
+
+```{r}
+v.resids.fit$psill
+
+var(glacier.sf$resids)
+
+```
+
+Ans: As we can see the sill value is very close to the variance of the residuals. This makes sense because the variance and the sill value both indicate the limit after which the points are basically independent. This means they have no significant spatial correlation after that distance where this variance or sill value occurs.  
+
+# Exercise 2: Arsenic
+
+These data include Arsenic concentrations found in drinking water across the US. Arsenic occurs in the ground naturally, but is poisonous. 
+The data source is here: https://catalog.data.gov/dataset/map-of-arsenic-concentrations-in-groundwater-of-the-united-states
+
+The data are in a shapefile (shp). They contain arsenic concentrations (micrograms per liter) for over 20,000 wells and springs. 
+
+From Minnesota department of health: 
+
+"The Environmental Protection Agency (EPA) federal drinking water standard for arsenic in drinking water is 10 micrograms per liter. However, drinking water with arsenic at levels lower than the EPA standard over many years can still increase your risk of cancer. As a result, EPA sets health risk goals. The EPA has set a goal of 0 micrograms/liter for arsenic in drinking water." 
+
+9.  Load the Arsenic data using st_read. What are the names of the columns in the data?
+
+```{r}
+arsenic.sf<-st_read("C:/Users/iamin/Downloads/arsenic_nov2001/arsenic_nov2001.shp")
+
+colnames(arsenic.sf)
+```
+
+
+10. Filter to include only the lower peninsula of Michigan: STATE == "MI", LAT_DD < 46
+
+```{r}
+
+arsenic_mi.sf<- arsenic.sf%>%
+  filter(STATE == "MI", LAT_DD<46)
+
+```
+
+
+11. Create a new variable, logConc = log(AS_CONC)
+
+```{r}
+arsenic_mi.sf["logConc"]<-log(arsenic_mi.sf$AS_CONC)
+```
+
+
+12. Using ggmap, ggplot, or tmap, create a plot showing the log arsenic concentrations overlaid on a map showing the state boundary.
+
+```{r}
+michigan_map<-map_data("state")%>%
+  filter(region == "michigan")
+michigan_map.sf<-michigan_map %>% st_as_sf(coords = c("long", "lat")) %>%
+summarise(geometry = st_combine(geometry)) %>%
+st_cast("POLYGON") %>%
+  st_make_valid()
+
+tmap_mode("view")
+tm_basemap("Esri.WorldImagery")+
+tm_shape(michigan_map.sf)+
+  tm_borders(col = "red")+
+  tm_fill(col = "lightblue", alpha = .3)+
+tm_shape(arsenic_mi.sf)+
+  tm_dots("logConc", title = "Log of Arsenic Conc.")+
+  tm_layout(title = "Log of arsenic concentrations in the lower peninsula of Michigan")
+```
+
+
+13. Create a lagged scatterplot using `hscat`. Use breaks = (0:12)*3000. Comment on what you observed.
+
+```{r}
+hscat(log(AS_CONC)~1, arsenic_mi.sf, breaks = (0:12)*3000)
+```
+
+Ans: From the graphs we can see the value of r decreases with the increase of distance in the breaks. This means the spatial correlation decreases with the increase of distance between two points. 
+
+14. Create an empirical semivariogram. Visually approximate the nugget, sill, and range values from the graph.
+
+```{r}
+v.ars.emp <- variogram(logConc~1, arsenic_mi.sf)
+plot(v.ars.emp, main = "Empirical Semivariogram of log of Arsenic Concentration")
+
+
+```
+
+Ans: nugget = 0.6, sill = 1.0, range = 20000. 
+
+15. Fit a spherical semivariogram and plot it onto the empirical semivariogram. Identify the nugget, sill, and range parameters and compare them to your approximations.  (NOTE: The output shows the nugget and partial sill values. Sill = nugget + partial sill. )
+
+```{r}
+v.ars.fit <- fit.variogram(v.ars.emp, 
+                            vgm("Sph", psill =0.4, nugget = 0.6, range = 20000))
+plot(v.ars.emp, model = v.ars.fit, main = "Fitted Semivariogram of log of Arsenic Concentration")
+
+v.ars.fit
+```
+
+Ans: My approximation of the nugget value is 0.02 less than the predicted value. The predicted psill value is almost the same. And the predicted range value is almost 5000 units more than my approximation. 
+
+16. Conduct a sensitivity analysis: Create the empirical semivariogram with width = 1000, width = 2000, and width = 4000 and then fit a theoretical spherical model. Compare the resulting empirical variogram and the fitted parameter values to the results using the default width.
+
+```{r}
+v.ars.emp <- variogram(logConc~1, arsenic_mi.sf)
+v.ars1k.emp <- variogram(logConc~1, arsenic_mi.sf, width = 1000)
+plot(v.ars1k.emp, main = "Empirical Semivariogram (Width =1k)")
+v.ars1k.fit <- fit.variogram(v.ars1k.emp, 
+                            vgm("Sph", psill =1, nugget = 0.3, range = 20000))
+plot(v.ars1k.emp, model = v.ars1k.fit, main = "Fitted Semivariogram (Width =1k)")
+
+v.ars2k.emp <- variogram(logConc~1, arsenic_mi.sf, width = 2000)
+plot(v.ars2k.emp, main = "Empirical Semivariogram (width = 2k)")
+v.ars2k.fit <- fit.variogram(v.ars2k.emp, 
+                            vgm("Sph", psill =1, nugget = 0.4, range = 20000))
+plot(v.ars2k.emp, model = v.ars2k.fit, main = "Fitted Semivariogram (Width =2k)")
+
+v.ars4k.emp <- variogram(logConc~1, arsenic_mi.sf, width = 4000)
+plot(v.ars4k.emp, main = "Empirical Semivariogram (width = 4k)")
+v.ars4k.fit <- fit.variogram(v.ars4k.emp, 
+                            vgm("Sph", psill =1, nugget = 0.6, range = 20000))
+plot(v.ars4k.emp, model = v.ars4k.fit, main = "Fitted Semivariogram (Width =4k)")
+
+v.ars1k.fit
+v.ars2k.fit
+v.ars4k.fit
+v.ars.fit
+```
+
+Ans: We can see that the resulting values of the fitted parameters for width 1000 is way more closer to the values of the fitted parameters with width 2000 and 4000. This suggests that width higher than 1000 makes the fitted semivariogram more ineffective in terms of prediction since too many points will fall into very few groups and won't be able to show a good trend. 
+
