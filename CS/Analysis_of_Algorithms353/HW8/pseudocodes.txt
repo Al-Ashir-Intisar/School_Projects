@@ -1,0 +1,117 @@
+Write pseudo-code for a divide and conquer algorithm to determine whether or not a given item occurs in a sorted array.
+
+function binarySearch(arr, target, start, end):
+    if start > end:
+        return false  # Base case: target not found
+    
+    mid = (start + end) // 2  # Calculate the middle index
+    
+    if arr[mid] == target:
+        return true  # Base case: target found at the middle index
+    elif arr[mid] < target:
+        return binarySearch(arr, target, mid + 1, end)  # Search in the right half
+    else:
+        return binarySearch(arr, target, start, mid - 1)  # Search in the left half
+
+# Wrapper function for the binary search algorithm
+function searchInSortedArray(arr, target):
+    return binarySearch(arr, target, 0, len(arr) - 1)
+
+# Example usage:
+sortedArray = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+targetItem = 6
+result = searchInSortedArray(sortedArray, targetItem)
+
+if result:
+    print("Item found in the array.")
+else:
+    print("Item not found in the array.")
+
+
+2. a) Write pseudo-code for a divide and conquer algorithm to count how many 1's occur in a sorted binary array (containing only 0's and 1's).
+
+function countOnes(binaryArray, start, end):
+    if start > end:
+        return 0  # Base case: empty subarray
+    
+    mid = (start + end) // 2  # Calculate the middle index
+    
+    # Count 1's in the left and right halves
+    leftCount = countOnes(binaryArray, start, mid - 1)
+    rightCount = countOnes(binaryArray, mid + 1, end)
+    
+    # Count 1's in the current subarray
+    currentCount = 1 if binaryArray[mid] == 1 else 0
+    
+    # Return the total count for the current subarray
+    return leftCount + currentCount + rightCount
+
+# Wrapper function for the countOnes algorithm
+function countOnesInBinaryArray(binaryArray):
+    return countOnes(binaryArray, 0, len(binaryArray) - 1)
+
+# Example usage:
+binaryArray = [0, 0, 0, 1, 1, 1, 1, 1, 1]
+result = countOnesInBinaryArray(binaryArray)
+
+print("Number of 1's in the binary array:", result)
+
+
+3 a) Write pseudo-code for a divide and conquer algorithm to count how many times a given item occurs in a sorted array.
+
+function countOccurrences(arr, target, start, end):
+    if start > end:
+        return 0  # Base case: empty subarray
+    
+    mid = (start + end) // 2  # Calculate the middle index
+    
+    if arr[mid] == target:
+        # The target is found at the middle index. Expand the search to both sides.
+        leftCount = countOccurrences(arr, target, start, mid - 1)
+        rightCount = countOccurrences(arr, target, mid + 1, end)
+        
+        # Include the current occurrence at the middle index.
+        return 1 + leftCount + rightCount
+    elif arr[mid] < target:
+        return countOccurrences(arr, target, mid + 1, end)  # Search in the right half
+    else:
+        return countOccurrences(arr, target, start, mid - 1)  # Search in the left half
+
+# Wrapper function for the countOccurrences algorithm
+function countOccurrencesInSortedArray(arr, target):
+    return countOccurrences(arr, target, 0, len(arr) - 1)
+
+# Example usage:
+sortedArray = [1, 2, 2, 3, 3, 3, 4, 4, 5]
+targetItem = 3
+result = countOccurrencesInSortedArray(sortedArray, targetItem)
+
+print("Number of occurrences of", targetItem, "in the sorted array:", result)
+
+
+4 a) Write pseudo-code for a divide and conquer algorithm to find the maximum value of an unsorted array.
+
+function findMax(arr, start, end):
+    if start == end:
+        return arr[start]  # Base case: only one element in the subarray
+    
+    mid = (start + end) // 2  # Calculate the middle index
+    
+    # Divide the array into two halves and find the maximum in each half
+    leftMax = findMax(arr, start, mid)
+    rightMax = findMax(arr, mid + 1, end)
+    
+    # Combine the results by returning the maximum of the left and right halves
+    return max(leftMax, rightMax)
+
+# Wrapper function for the findMax algorithm
+function findMaxInArray(arr):
+    if len(arr) == 0:
+        return None  # Handle empty array case
+    return findMax(arr, 0, len(arr) - 1)
+
+# Example usage:
+unsortedArray = [3, 7, 1, 9, 5, 2, 8, 4, 6]
+result = findMaxInArray(unsortedArray)
+
+print("Maximum value in the array:", result)
