@@ -1,0 +1,158 @@
+---
+title: "HW 13"
+subtitle: "Due Tues April 18"
+author: "Al Ashir Intisar"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+This homework includes some basics of STRINGS and FUNCTIONS
+
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+
+## Part 1: mini_tibble
+
+```{r}
+mini_tibble <- tibble(produce = c("apple", "poblano", "banana"),
+                      class_num = c(110, 212, 272))
+
+mini_tibble
+```
+
+
+For the following problems, you can just print out the resulting dataset, you don't need to save the output. 
+
+1. Add a column to mini_tibble called "last" which is the last character of the produce variable. (hint: str_sub).
+
+```{r}
+mini_tibble|>
+  mutate(last = str_sub(produce, start = str_length(produce)))
+```
+
+
+
+2. Add a column to mini_tibble called "stats_classes" which has values "STAT 110", "STAT 212", "STAT 272". (hint: str_c)
+
+
+```{r}
+mini_tibble|>
+  mutate(stats_classes = str_c("STAT ", class_num))
+```
+
+
+
+
+3. [For this problem, don't use mini_tibble!] Use `str_length()` and `str_sub()` to extract the **middle** character from the string "apple". Then use the same two functions to extract the middle character from the string "poblano". Finally, use the same two functions to extract the middle two characters from the string "banana".
+
+The code below gets you started.
+
+```{r, error = TRUE}
+x <- "apple"
+middle <- (str_length(x) + 1) / 2
+str_sub(x, middle, middle)
+
+x <- "poblano"
+middle <- (str_length(x) + 1) / 2
+str_sub(x, middle, middle)
+
+x <- "banana"
+middle <- (str_length(x) + 1) / 2
+str_sub(x, middle, middle+1)
+
+```
+
+
+4. [For this problem, don't use mini_tibble!] Write a function (call it `extract_middle()`) that will extract the middle character from a string with an odd number of charcters and the middle two characters from a string with an even number of characters. Test it on "apple", "poblano", and "banana". (Hint: x %% 2 == 0 is TRUE if x is even and FALSE if x is odd)
+
+```{r, error = TRUE}
+extract_middle <- function(x){
+  
+  middle <- (str_length(x) + 1) / 2
+  
+  ifelse(str_length(x) %% 2 == 0, str_sub(x, middle, middle+1), str_sub(x, middle, middle))
+ 
+  
+}
+
+
+extract_middle("apple")
+extract_middle("poblano")
+extract_middle("banana")
+```
+
+
+5. Show how you can use your new function to add a column to mini_tibble called "middle" which has the middle 1 or 2 characters.
+
+```{r}
+mini_tibble|>
+  mutate(middle = extract_middle(produce))
+```
+
+
+## Part 2: Spotify
+
+```{r}
+bigspotify <- read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-01-21/spotify_songs.csv')
+
+spot_smaller <- bigspotify[c(3993,  1590, 23036, 23062, 18304, 20630,  6193,  7922, 21105,  9432), ] %>%
+  select(track_name, track_artist, track_album_release_date, playlist_genre, playlist_subgenre, playlist_name)
+
+spot_smaller
+```
+
+
+6. Use $ and [] to print the first three track names from spot_smaller. (Hint: See Code > 06-functions_Vectors_classes > Ch20_tibbles Rmd)
+
+```{r}
+spot_smaller$track_name[1:3]
+```
+
+
+7. The file Class > 07-Strings > ch14_str_functions.Rmd includes examples of how to view and detect certain strings, and how to use str_detect within a filter statement. Modify the code below to find songs with a track_name that contains the word "Run"
+
+```{r, eval = FALSE}
+# These will not knit because Html previewer cannot knit.
+#str_view(spot_smaller$playlist_subgenre, "pop")
+#str_view(spot_smaller$playlist_subgenre, "pop", match = TRUE)
+```
+
+
+```{r}
+str_detect(spot_smaller$playlist_subgenre, "pop")
+
+spot_smaller %>%
+  filter(str_detect(track_name, "Run "))
+```
+
+8. Using the last filter, what happens if you look for the string "run" in track_name instead?
+Add a mutate step so that the track_name is converted to all lower case before filtering to find "run". 
+
+```{r}
+spot_smaller %>%
+  filter(str_detect(track_name, "run"))
+
+spot_smaller|>
+  mutate(track_name = str_to_lower(track_name))|>
+  filter(str_detect(track_name, "run"))
+  
+  
+```
+
+**Ans: When used "run" we don't find any track_name with that word because lower case r is different than upper case R.**
+
+9. Repeat number 8 with the entire bigspotify dataset. How many songs contain "run" in the track_name?
+
+```{r}
+bigspotify|>
+  mutate(track_name = str_to_lower(track_name))|>
+  mutate(run_num = str_detect(track_name, "run"))|>
+  drop_na(run_num)|>
+  summarise(run = sum(run_num))
+```
+
+**Ans: There are 182 songs that contain "run" in the track_name.**

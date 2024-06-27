@@ -1,0 +1,186 @@
+---
+title: "MSCS 264: Homework #3"
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  html_document:
+    df_print: paged
+  word_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+The dataset we will use is called `bball`. You can acquire it by runnining the chunk of code below. 
+Here, we use a techinique called webscraping. If you go to the URL, you can see that table of all the NBA players stats in 2022. The code below "scrapes" that data from the website and tidies it in R!  By the end of the semester, you'll know how to do this yourself! (Just to get you started thinking about ALL the possibilities of where data can come from!)
+```{r setup, include = FALSE}
+library(tidyverse)
+library(rvest)
+
+url = glue::glue("http://www.basketball-reference.com/leagues/NBA_2022_totals.html")
+
+bball = read_html(url) %>% 
+  html_nodes("#totals_stats") %>% 
+  html_table() %>%
+  data.frame(check.names = FALSE) %>%
+  as_tibble() %>%
+  mutate(across(G:PTS, parse_number),
+         points_per_minute = PTS/MP,
+         Pos = str_sub(Pos, 1,2),
+         Pos = str_replace(Pos, "-", "")) %>%
+  rename(FGpct = `FG%`,
+         FTpct = `FT%`) %>%
+  filter(MP > 10)
+  
+
+bball
+```
+
+
+1. Let's find the top scoring centers. To do this, follow the steps below. In each step, you will create a new dataset. Retype the name of the dataset below to print it out!
+
+```{r}
+colnames(bball)
+bball$Pos
+```
+
+
+a. Create a dataset that includes only players who play at the center position (Pos is equal to C). Name it bball1. 
+
+```{r}
+bball1 <- filter(bball, Pos == "C")
+bball1
+```
+
+
+
+b. Make your dataset only include the columns Player, Tm (Team), and PTS (points scored). Name it bball2.
+
+```{r}
+bball2 <- select(bball1, Player, Tm, PTS)
+bball2
+```
+
+
+c. Using arrange, print out the dataset from most to least points scored. (It will by default print out the first 10, which is all you need!). Name it bball3.
+
+```{r}
+bball3 <- arrange(bball2, desc(PTS))
+bball3
+```
+
+
+
+d. Rename the Tm column "Team and the PTS column "Points Scored". (You can just have this one print out, you don't need to save it!)
+
+```{r}
+rename(bball3, Team = Tm, Points_Scored = PTS)
+```
+
+
+2. Create a table similar to the one above, but include the point guards (Pos is equal to PG) with the most minutes played (MP). Rename the columns Team and Minutes Played.
+
+```{r}
+bball|>
+  filter(Pos == "PG")|>
+  select(Player, Tm, MP)|>
+  rename(Team = Tm, Minutes_Played = MP)|>
+  arrange(desc(Minutes_Played))
+  
+```
+
+
+### Data Visualization
+
+3. Create a boxplot of the number of points scored (PTS) by Position (Pos).
+
+```{r}
+bball|>
+  ggplot(aes(x = Pos, y = PTS))+
+  geom_boxplot(aes(fill = Pos))
+```
+
+
+4. Notice that the number of points scored may be as low as zero! This is because we include players who may have only played for a few minutes the entire season. Let's create a new dataset, bball58 which only includes players who played in at least 58 games (variable G is number of games played in). Recreate your boxplot from 3 using this 
+
+```{r}
+bball58 <- filter(bball, G >= 58)
+bball58|>
+  ggplot(aes(x = Pos, y = PTS))+
+  geom_boxplot(aes(fill = Pos))
+  
+```
+
+
+5. Add axis labels and a title to your graph above. 
+
+```{r}
+bball58|>
+  ggplot(aes(x = Pos, y = PTS))+
+  geom_boxplot(aes(fill = Pos))+
+  labs(title = "Boxplot of points scored against position played")+
+  xlab("Position Played")+
+  ylab("Points Scored")
+```
+
+
+
+6. Based on your graph, which position tended to score the most points? Which had the most variability in points scored?
+
+**Ans: The point guard seems to score the mostr as well as has the highest variability in points scored.**
+
+
+In the next problem, we will use a subset of the General Social Survey conducted in the US in 2016. 
+```{r}
+#library(socviz)
+#gss_sm
+gss_sm <- read_csv("~/Mscs 264 S23/Class/Data/gss_sm.csv")
+```
+See the ?gss_sm for defnitions of all variables. 
+
+
+```{r}
+colnames(gss_sm)
+```
+
+
+
+We will examine if there is a relationahip between the highest degree eared by a respondent's mother (madeg) and the respondent's degree (degree).
+
+7. Create a segmented bar chart showing this relationship.
+
+```{r}
+gss_sm|>
+  ggplot()+
+  geom_bar(mapping = aes(x = degree, fill = madeg), position = "fill")
+  
+```
+
+
+
+8. Edit the x-axis and legend labels in your graph above.
+
+```{r}
+gss_sm|>
+  ggplot()+
+  geom_bar(mapping = aes(x = degree, fill = madeg), position = "fill")+
+  labs(fill = "Mother's Degree")+
+  xlab("Respondent's Degree")
+```
+
+
+9. What relationship do you observe between mother's highest degree and respondent's degree?
+
+**Ans: There does seem to be some positive correlation between respondent's degree and their mother's degree. Like the higher the degree of the respondent the more likely their mothers' will have a Bachelor degree. But their is a high prevalence of high school degrees in mothers' degrees. And if a respondent has unavailable degree it's very likely that their mothers' will have the same.**  
+
+
+10. Create a side by side bar chart (dodge) for the same relationship. Do you think the segmented or side by side chart shows the relationship more clearly?
+
+```{r}
+gss_sm|>
+  ggplot()+
+  geom_bar(mapping = aes(x = degree, fill = madeg), position = "dodge")+
+  labs(fill = "Mother's Degree")+
+  xlab("Respondent's Degree")
+```
+

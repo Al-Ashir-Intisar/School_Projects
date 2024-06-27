@@ -1,0 +1,302 @@
+---
+title: 'Ch5: group_by and summarize'
+author: "YOUR NAME HERE"
+date: "2/28/2022"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+**Notes about summarize**
+
+- The other "verbs" we used (mutate, filter, select) kept the meaning of the rows of the dataset the same (e.g. each row is a flight, each row is a diamond). Summarize will NOT. Now each row represents a GROUP.
+
+- summary statistics summarize information about a group with a single value. Examples are mean, median, minimum, maximum, standard deviation and IQR. Those are all useful summary statistics for numeric variables. For categorical variables, we might summarize them with a proportion, or a count. (Yes, the count, or number, is also a summary statistic because it describes a group!)
+
+
+
+```{r, message = FALSE}
+library(tidyverse)
+library(nycflights13)
+```
+
+In this markdown we will practice group_by and summarize. 
+
+To make things simpler, we will at first use a subset of all the NOT CANCELLED flights
+
+```{r}
+not_cancelled <- flights %>% 
+  filter(!is.na(dep_delay), !is.na(arr_delay)) %>%
+  select(year, month, day, origin, dest, distance, carrier, sched_dep_time, hour, dep_time, dep_delay, arr_time, arr_delay)
+
+not_cancelled
+```
+
+1. What does the code above do?
+
+**Ans: The code above filters out the records that does not have any arrival or departure delay. That is because either those flights got cancelled or they went to a different destination and did not arriave in the intended destination.**
+
+*For all of the following, use the dataset "not_cancelled"!*
+
+
+# Summarize
+
+We can use summarize to find summary statistics, such as average, median, standard deviation....
+
+```{r}
+not_cancelled %>% summarize(MeanArrTime = mean(arr_time))
+```
+
+
+```{r}
+not_cancelled %>% summarize(MedianArrTime = median(arr_time))
+```
+
+
+```{r}
+not_cancelled %>% summarize(MedianArrTime = median(arr_time),
+                            MedianDepTime = median(dep_time))
+```
+
+
+2. Summarize can be particularly powerful in combination with other verbs! Descrie what the code below does. 
+```{r}
+not_cancelled %>% 
+  filter(origin == "JFK") %>%
+  summarize(mean_dep_delay = mean(dep_delay))
+```
+
+**Ans: The code chunk calculates the mean departure delay of flights that have origin destination as JFK airport.**
+
+3. Find the average arrival delay for flights flying into MSP.
+
+```{r}
+not_cancelled %>% 
+  filter(dest == "MSP") %>%
+  summarize(mean_arr_delay = mean(arr_delay))
+```
+
+
+
+# group_by()
+
+Often times we are interested in finding means, proportions, or other statistics BY GROUPS.
+
+For example, if we want to find the average arrival delay *for each origin airport*:
+
+```{r}
+not_cancelled %>%
+  group_by(origin) %>%
+  summarize(mean_arrival_delay = mean(arr_delay))
+```
+
+Notice that this produces a new, smaller dataset!
+
+4. Read the code below carefully. Before running it, predict how many rows and columns the resulting dataset should have. Were you right?
+
+**Ans: The resulting dataset should have 3 columns and 12 rows.**
+
+```{r}
+not_cancelled %>%
+  group_by(month) %>%
+  summarize(mean_dep_delay = mean(dep_delay),
+            median_dep_delay = median(dep_delay), 
+            max_dep_delay = max(dep_delay))
+```
+
+**Ans: Unfortunately I forgot about the month column.**
+
+5. The variable "hour" indicates the hour of the day the flight is scheduled to depart (e.g. departing at 5:35Am is hour=5; departing at 1:32pm, or 13:32, is hour=13). Find the mean departure delay for each hour. 
+
+```{r}
+not_cancelled %>%
+  group_by(hour) %>%
+  summarize(mean_dep_delay = mean(dep_delay))
+```
+
+
+
+# n() : counting the number of rows.
+
+The function n() just counts how many rows. We always use n() within a summarize(), never on its own!
+
+```{r}
+not_cancelled %>% 
+  summarize(number_of_flights = n())
+```
+
+It can be useful in combination with group_by! For example, predict what the following will do before you run the code!
+
+**Ans: The code chunk will produce a dataset with mean departure delay of flights in each month and how many flights were there in each of those months.**
+
+```{r}
+not_cancelled %>%
+  group_by(month) %>%
+  summarize(mean_dep_delay = mean(dep_delay),
+            n = n())
+```
+
+**Ans: It will create a geom plot with two layers. One layer will create a line graph of month number on the x axis and mean departure delay on the y axis. And the next layer will add points to each value and the size of the points will depend on the number of flights in each of those months.**
+
+Predict what this code will do before you run it:
+```{r}
+not_cancelled %>%
+  group_by(month) %>%
+  summarize(mean_dep_delay = mean(dep_delay),
+            num_flights = n()) %>%
+  ggplot(aes(x = month, y = mean_dep_delay)) +
+  geom_line() + 
+  geom_point(aes(size = num_flights))
+```
+
+
+
+6. Copy and modify your code from #5 to create a graph with hour on x axis, mean_dep_delay on y-axis, with points sized by number of flights. Describe the pattern you see in the graph.
+
+```{r}
+not_cancelled %>%
+  group_by(hour) %>%
+  summarize(mean_dep_delay = mean(dep_delay),
+            num_flights = n()) %>%
+  ggplot(aes(x = hour, y = mean_dep_delay)) +
+  geom_line() + 
+  geom_point(aes(size = num_flights))
+```
+
+**Ans: The departure delay increases as the hour proceeds from day to night and few hour before mifnight the delay drops drastically as the number of flights drop as well.**
+
+7. Look in the Class > Code  > images folder. Create a graph that looks like ch5_mean_arr_delay_by_dest.png. 
+Note that each dot on the graph represents one destination airport (dest). 
+Before starting, think about what variables are on the x and y axis. What should your dataset look like? (what rows? columns?) You might even sketch it out! 
+
+```{r}
+not_cancelled %>%
+  group_by(dest) %>%
+  summarize(mean_arr_delay = mean(arr_delay),
+            num_flights = n()) %>%
+  ggplot(aes(x = num_flights , y = mean_arr_delay)) +
+  geom_point()+
+  geom_smooth(se = FALSE)+
+  xlab("Number of flights to destination")+
+  ylab("Mean Arrival Delay")
+```
+
+
+
+8. Describe the pattern you see in the graph. Do busier airports have longer average arrival delays?
+
+**Ans: There is a bit of noise in the mean arrival delay when the number of flights to destination is very low but as the number of flights increases the mean tends to remain whithin a short standard deviation.** 
+
+9. Optional bonus problem: Copy and modify your code from 7 so that your graph has Distance on the x axis and each point is sized according to the number of flights. (each point still represents one destination; consider changing alpha level to make it easier to read!).
+
+```{r}
+not_cancelled %>%
+  group_by(dest) %>%
+  summarize(mean_arr_delay = mean(arr_delay),
+            mean_distance = mean(distance),
+            num_flights = n()) %>%
+  ggplot(aes(x = mean_distance , y = mean_arr_delay)) +
+  geom_point(aes(size = num_flights), alpha = .5)+
+  geom_smooth(se = FALSE)+
+  xlab("Mean distance to the destination")+
+  ylab("Mean Arrival Delay")
+```
+
+
+10. Use slice_max to find the 5 destinations with the shortest mean arrival delay.
+
+```{r}
+not_cancelled %>%
+  group_by(dest) %>%
+  summarize(mean_arr_delay = mean(arr_delay)) %>%
+  arrange(mean_arr_delay)%>%
+  slice_max(-(mean_arr_delay), n=5)
+```
+
+
+11. Use slice_max to find the 5 destinations with the most flights.
+
+```{r}
+not_cancelled %>%
+  group_by(dest) %>%
+  summarize(num_flights = n()) %>%
+  slice_max(num_flights, n=5)
+```
+
+
+# count()
+
+Count() is an alternative to n(). It is basically a shortcut for group_by() and summarize(... = n()).
+
+For example, we can count the total number of rows in not_cancelled:
+```{r}
+not_cancelled %>% count()
+
+not_cancelled %>% summarize(n = n())
+```
+
+We can count how many rows for each destination: 
+```{r}
+not_cancelled %>%
+  group_by(dest) %>%
+  summarize(n = n())
+
+not_cancelled %>%
+  count(dest)
+```
+
+By observing that our resulting table has 104 rows, we can also use this to figure out that there are 104 unique destinations in the not_cancelled dataset!
+
+12. How many destinations does United (UA) fly to? (hint: first filter!)
+
+```{r}
+not_cancelled %>%
+  filter(carrier == "UA") %>%
+  count(dest)
+```
+
+**Ans: 47 destinations.**
+
+13. How many destinations are flown to from Newark? (origin == "EWR")
+
+```{r}
+not_cancelled %>%
+  filter(origin == "EWR") %>%
+  count(dest)
+```
+
+**Ans: 85 destinations.**
+
+14. Which are the top 5 destinations flown to from Newark? (hint slice_max!)
+
+```{r}
+not_cancelled %>%
+  filter(origin == "EWR") %>%
+  count(dest)%>%
+  slice_max(n , n = 5)
+```
+
+
+
+For some real crazy, try using group_by and count:
+```{r}
+not_cancelled %>% 
+  group_by(origin) %>% 
+  count(dest)
+```
+
+
+15. Can you add another line to the code above to count how many destinations each origin airport flies to? 
+(e.g. resulting dataset should have 3 rows). Remember we can read
+`count( XXXX )` as "count the number of rows for each category in XXX"
+For example, count(dest) counts the number of rows (flights) to each destination airport.
+
+```{r}
+not_cancelled %>% 
+  group_by(origin) %>% 
+  count(dest)%>%
+  count(origin)
+```
+
+
+

@@ -1,0 +1,293 @@
+---
+title: "MSCS 264: Homework #15"
+subtitle: "Due Friday, April 28 at 11pm"
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  word_document: default
+  html_document:
+    df_print: paged
+editor_options: 
+  chunk_output_type: console
+author: Al Ashir Intisar
+---
+
+As always, submit your knitted pdf file to Moodle, but be sure your RMarkdown file is saved and accessible in your Submit folder on the RStudio server.
+
+```{r, setup, include=FALSE}
+library(tidyverse)
+library(tidytext)
+library(lubridate)
+
+```
+
+
+# Part 1: Review. Obama Tweets
+This problem is review of strings and of other data wrangling and graphing.
+
+
+
+
+President Barack Obama became the first US President with an official twitter account, when @POTUS went live on May 18, 2015. (Yes, there was a time before Twitter. )
+First Lady Michelle Obama got in on Twitter much earlier, though [her first tweet](https://youtu.be/3Pze1f1x7yU) was not from @FLOTUS. All of the tweets from @POTUS and @FLOTUS are now archived on Twitter as @POTUS44 and @FLOTUS44, and they are available as a csv download from the National Archive.
+Read more here: https://obamawhitehouse.archives.gov/blog/2017/01/05/new-lenses-first-social-media-presidency
+
+
+The csv files appear in the Class Data folder. 
+
+
+1. Explain what the code below does (Hint: Use ? to look at the help menu of a function if you're not sure what it does!)
+
+```{r}
+barack <- read_csv("~/Mscs 264 S23/Class/Data/tweets_potus.csv")
+michelle <- read_csv("~/Mscs 264 S23/Class/Data/tweets_flotus.csv")
+
+tweets <- bind_rows(barack %>% 
+                      mutate(person = "Barack"),
+                    michelle %>% 
+                      mutate(person = "Michelle")) %>%
+  mutate(timestamp = ymd_hms(timestamp))
+```
+
+***Ans: The code above is reading in the csv file from the class folder then adding a person variable (column) to both Barack and Michelle Obama dataset. Then it is row binding the two dataset so that they become one dataset with same variables (columns). The it is mutating the timestamp variable to be in the year_month_day_hour_minute_seconds format.***
+
+
+2. For some additional reference, here is a plot of the number of tweets per month from Barack and Michelle. Identify two interesting things from this plot.
+
+```{r}
+ggplot(tweets, aes(x = timestamp, fill = person)) +
+  geom_histogram(position = "identity", bins = 48, show.legend = FALSE) +
+  facet_wrap(~person, ncol = 1)+
+```
+
+***Ans: We can see that the number of tweets by Michelle Obama increased a lot right before Barack Obama joined tweeter or becanme president. This could be because she was campaigning for her husband through tweeter. And definitely overall Michelle Obama has way higher average tweets then Barack Obama.*** 
+
+
+3. Michelle ended the tweets that she personally wrote "-mo". What proportion of her tweets did she personally write? (hint: str_detect and then summarize. Mean of TRUE/FALSE variable is a proportion!)
+
+```{r}
+tweets|>
+  group_by(person)|>
+  mutate(is_mo = str_detect(text, "-mo$"))|>
+  summarise(personal = mean(is_mo))
+
+```
+
+***Ans: Looks like she wrote about 2.3 percent of the tweets herself.***
+
+
+4. What proportion of tweets for each person were retweets? 
+
+A retweet will start with "RT". For example:
+```{r}
+tweets$text[7]
+```
+
+
+```{r}
+tweets|>
+  group_by(person)|>
+  mutate(is_rt = str_detect(text, "^RT"))|>
+  summarise(retweets = mean(is_rt))
+
+```
+
+***Ans: 5.3% of Barack Obama's tweets were retweets and 32.0% of Michelle Obama's tweets were retweets.***
+
+
+5. For the year 2016, create a pair of bargraphs comparing the proportion of tweets that are RT by day of the week (x axis day of week, height of bars indicates proportion retweets) for Barack and Michelle.
+Hints: Use wday from lubridate package (look at help to see how to print as words rather than numbers)
+
+```{r}
+week_rt <- tweets|>
+  filter(timestamp > "2016-01-01 00:00:01 UTC", timestamp < "2017-01-01 00:00:01 UTC")|>
+  mutate(is_rt = str_detect(text, "RT"))|>
+  mutate(week_day = wday(timestamp, label = TRUE))|>
+  group_by(person, week_day)|>
+  summarise(retweets = mean(is_rt))
+
+week_rt|>
+  ungroup()|>
+  ggplot(aes(week_day, retweets, color = person))+
+  geom_bar(stat = "identity")+
+  facet_wrap(~person)+
+  labs(title = "Proportion of tweets that are RT by day of the week", x = "Day of the week", 
+       y = "Proportion of retweets", color = "Tweted by")
+
+```
+
+
+
+We will discuss the code below in detail next week when we do text analysis. As you can see, it takes the data and makes each individual word a new line. All the words from the same tweet share the same tweet_id. We also record the person (Barack or Michelle) who wrote the tweet.
+
+
+
+```{r}
+remove_reg <- "&amp;|&lt;|&gt;"
+
+tidy_tweets <- tweets %>% 
+  filter(!str_detect(text, "^RT")) %>% 
+  mutate(text = str_remove_all(text, remove_reg)) %>%
+  unnest_tokens(word, text, token = "tweets") %>%
+  ## Note: This filter part is instead of using anti_join for removing stop words.
+  filter(!word %in% stop_words$word,                          
+         !word %in% str_remove_all(stop_words$word, "'"),
+         str_detect(word, "[a-z]"))
+```
+
+***The code does not seem to work for me.Getting the following error. I have got the dataset from a frind and uploaded into my environment and worked with that dataset for the following questions.***
+
+Error in get(paste0("tokenize_", token)) : 
+  object 'tokenize_tweets' not found
+
+```{r}
+library(readr)
+tidy_tweets <- read_csv("~/Mscs 264 S23/Submit Section A/Homeworks /tidy_tweets.csv")
+
+```
+
+6. In tidy tweets, add a column that indicates whether the word is a hashtag (starts with #). Your column should be a logical (TRUE/FALSE) variable.
+
+
+```{r}
+tidy_tweets <- tidy_tweets|>
+  mutate(hash = str_detect(word, "^#"))
+  
+tidy_tweets|>
+  colnames()
+```
+
+
+
+7. For each person, what proportion of words overall are hashtags? 
+
+```{r}
+tidy_tweets|>
+  group_by(person)|>
+  summarise(hashtag = mean(hash))
+
+```
+
+***Ans: for Barack Obama the proportion of hashtags is 0.0110 whereas for Michelle Obama it is 0.0891.***
+
+8. For each person find: the average number of hashtags per tweet, the max number of hashtags per tweet, and the proportion of their tweets that contain at least one hashtag. Comment on what you observe.
+
+```{r}
+tidy_tweets|>
+  group_by(person, tweet_id)|>
+  summarise(num_hash = sum(hash))|>
+  mutate(contain_hash = (num_hash > 0))|>
+  group_by(person)|>
+  summarise(avg_hash = mean(num_hash), max_hash = max(num_hash), prop_has_hash = mean(contain_hash))
+  
+  
+
+```
+
+***Ans: Michelle Obama has tags in her tweets than Barack Obama.***
+
+9. Crate a column on tidy_tweets that indicates an "@" (mention a username). Who are the 5 most common "@" for both Barack and Michelle? Comment on what you observe.
+
+```{r}
+tidy_tweets|>
+  mutate(is_mention = str_detect(word, "^@"))|>
+  select(person, word, is_mention)|>
+  filter(is_mention == TRUE)|>
+  group_by(person, word)|>
+  summarise(frequency = sum(is_mention))|>
+  slice_max(frequency, n = 5)
+```
+
+***Ans: Barack Obama does not have that many mentions and his mentions does not seem political. Whereas Michelle Obama's tweets have a lot of mentions and the most mentioned words is 'whitehouse'.***
+
+
+
+# Part 2: Tidy Data
+These two problems require pivots!
+
+1. Read in the csv file below which was scraped from a fivethirtyeight.com article entitled [Should Travlers Avoid Flying Airlines That Have Had Crashes in the Past?](https://fivethirtyeight.com/features/should-travelers-avoid-flying-airlines-that-have-had-crashes-in-the-past/). 
+
+Then, create a tidy version of this data set (illustrated below) by following these 3 steps:
+
+- take columns 3-8 and make a longer data set where column titles are stored in a new column called `var_plus_year` and the values in those columns are stored in a new column called `count`
+- create two variables from `var_plus_year`: one called `var` and one called `years`
+- make a wider data set by allowing each unique value of `var` to become its own column containing values from `count`
+
+Also give a one line explanation why each line of code was necessary to produce a tidy data set.
+
+```{r, eval = FALSE}
+airlinesafety <- read_csv("~/Mscs 264 S23/Class/Data/airline-safety.csv") 
+print(airlinesafety, width = Inf)
+```
+
+
+```{r}
+
+tidy_safety <- airlinesafety|>
+  pivot_longer(cols = 3:8, 
+               names_to = "var_plus_year", values_to = "count") %>% 
+  separate(var_plus_year, into = c("var", "years"), sep = " ") %>% 
+  pivot_wider(names_from = var, values_from = count)
+
+```
+
+***Ans: First line uses pivot longer to combine some variables together and then second line separates the desired columns into multiples columns and then last line uses pivot wider to uise those seperated columns as seperate variables.***
+
+Your final dataset should look like this:
+```{r, eval = FALSE}
+# A tibble: 112 x 6
+   airline      avail_seat_km_pe… years      incidents fatal_accidents fatalities
+   <chr>                    <dbl> <chr>          <dbl>           <dbl>      <dbl>
+ 1 Aer Lingus           320906734 1985_1999         2               0          0
+ 2 Aer Lingus           320906734 2000_2014         0               0          0
+ 3 Aeroflot*           1197672318 1985_1999        76              14        128
+ 4 Aeroflot*           1197672318 2000_2014         6               1         88
+ 5 Aerolineas …         385803648 1985_1999         6               0          0
+ 6 Aerolineas …         385803648 2000_2014         1               0          0
+ 7 Aeromexico*          596871813 1985_1999         3               1         64
+ 8 Aeromexico*          596871813 2000_2014         5               0          0
+ 9 Air Canada          1865253802 1985_1999         2               0          0
+10 Air Canada          1865253802 2000_2014         2               0          0
+# … with 102 more rows
+```
+
+
+
+2. [**FiveThirtyEight: How NFL Fans Lean Politically**](https://fivethirtyeight.com/features/how-every-nfl-teams-fans-lean-politically/)  We are going to recreate the bar plot entitled "The political leanings of every NFL team's fans".  Do the best you can to reproduce this plot, but you should at least (i) have teams sorted from greatest positive difference between Democrats and Republicans to greatest negative difference, and (ii) have one horizontal bar per team broken into 3 colors for Democrats, Independents, and Republicans.
+
+```{r}
+# Read in Survey Monkey data needed to reproduce bar plot
+urlfile2 <- "https://raw.githubusercontent.com/fivethirtyeight/data/master/nfl-fandom/NFL_fandom_data-surveymonkey.csv"
+survey_monkey <- read_csv(url(urlfile2), skip = 1)
+
+# There are 25 columns in this data set, but you can ignore variables which
+#   break down results by race.
+```
+
+```{r, eval = FALSE}
+# Here was my final code for producing a plot with my final dataset "survey_longer"...
+#   it contains variables that I created in the process of data wrangling, but it should give you
+#   an idea of what you are attempting to do in terms of a plot!
+#    The image is in class/homework/images/football_politics.png
+# Yours may look even better! Try experimenting with colors, etc. 
+
+survey_longer <- survey_monkey %>% 
+  mutate(diff = parse_number(`Dem%`) - parse_number(`GOP%`)) %>% 
+  mutate(Team = as.factor(Team)) %>% 
+  mutate(Team = fct_reorder(Team, diff)) %>% 
+  pivot_longer(cols = c("Dem%", "Ind%", "GOP%"), names_to = "party", values_to = "percent") %>% 
+  mutate("Dem%" = as.factor("Dem%"), "GOP%" = as.factor("GOP%"),
+         "Ind%" = as.factor("Ind")) %>% 
+  mutate(party = fct_recode(party, "Dem" = "Dem%", "Rep" = "GOP%", "Ind" = "Ind%")) %>% 
+  mutate(party = fct_relevel(party, "Dem", "Ind", "Rep"))
+
+
+ggplot(data = survey_longer) + 
+  geom_col(aes(x = Team, y = parse_number(percent), fill = party)) +
+  scale_fill_manual(breaks = c("Dem", "Ind", "Rep"),
+                    values = c("blue", "grey", "red")) +
+  labs(y = "percent") +
+  coord_flip()
+```
+

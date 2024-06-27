@@ -1,0 +1,139 @@
+---
+title: "MSCS 264: Homework #11"
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  word_document: default
+  html_document:
+    df_print: paged
+editor_options: 
+  chunk_output_type: console
+---
+
+For this assignment, you should submit a knitted pdf file to Moodle.  Be sure to include all of your R code, in addition to your output, plots, and written responses. **Read each question carefully and check your assignment prior to submission.** Use what you have learned about the principles of effective statistical communication and visualization.
+
+```{r, setup, include = FALSE}
+library(tidyverse)
+library(lubridate)
+```
+
+The data for this homework are from the Federal Election Commission (FEC) and includes all candidates who have filed with the FEC for elections in the U.S. House of Representatives, Senate or Presidency. These data include candidates who ran for office in Minnesota in 2018. (The 2019-2020 data are available [here](https://www.fec.gov/data/browse-data/?tab=candidates) if you're curious, but they cleaned up the formatting, so it's way less exciting to practice `readr` stuff like parse!)  The data set is called CandidateSummaryAction.csv and is in the Class > Data folder. 
+
+The Data folder also includes a txt file with definitions of variables.
+
+1. (a) Read in your .csv file using `read_csv()`. Remember to examine the documentation if you are confused about a function, `?read_csv`.
+
+```{r}
+library(readr)
+electionStuff <- read_csv("Mscs 264 S23/Class/Data/CandidateSummaryAction.csv")
+```
+
+
+(b) Subset the data to include only the following variables (change the dataset name in the code below to match yours, and then remove `eval = FALSE`). Call the new dataset `fec_mn`
+
+**1 pt**
+```{r}
+fec_mn <- electionStuff %>%
+  select(can_par_aff, can_inc_cha_ope_sea, can_nam, can_off, can_off_sta,
+         can_off_dis, ind_con, par_com_con, oth_com_con, can_con, tot_loa,
+         net_con, can_loa_rep, oth_loa_rep, tot_loa_rep, ind_ref, 
+         par_com_ref, oth_com_ref, tot_con_ref, net_ope_exp, cov_sta_dat,
+       cov_end_dat) 
+```
+
+
+
+2. (a) What type of variable is `cov_sta_dat`? If the class is not Date, coerce `cov_sta_dat` and `cov_end_dat` into Dates inside a `mutate` function. *Be sure to save this change to fec_mn, not just print it out!* Check the CandidateSumaryAction.dictionary.txt file in Class > Data. What do these variable mean? 
+
+```{r}
+typeof(fec_mn$cov_sta_dat)
+```
+
+**Ans: The variable `cov_sta_dat` is a character variable in this dataset.**
+
+```{r}
+fec_mn <- fec_mn|>
+  mutate(cov_sta_dat = mdy(cov_sta_dat), cov_end_dat = mdy(cov_end_dat))
+
+typeof(fec_mn$cov_sta_dat)
+typeof(fec_mn$cov_end_dat)
+  
+```
+
+**Ans: `cov_sta_dat` means coverage start date and `cov_end_dat` means coverage end date.**
+
+(b) Create a new variable, coverage time.  (end date minus start date) What type of variable is this?
+
+```{r}
+fec_mn|>
+  mutate(cov_time = cov_end_dat - cov_sta_dat)|>
+  select(cov_time)
+```
+
+**Ans: the coverage time is a drtn type which is difference in time in days.**
+
+(c) Now that these columns are in date format, you can find the following FOR EACH PARTY:  
+- average coverage start date
+- average coverage end date
+- average coverage_time
+- number of candidates
+
+(Note: first identify whcih variable indicates political party!)
+There are MISSING VALUES in the date columns. Think about how you want to handle them; there are lots of options! Describe in words what you chose to do in order to handle the missing values. 
+
+```{r}
+fec_mn|>
+  select(can_par_aff, cov_sta_dat, cov_end_dat)|>
+  drop_na()|>
+  mutate(cov_time = cov_end_dat -cov_sta_dat)|>
+  group_by(can_par_aff)|>
+  summarise(avg_cov_time = mean(cov_time), avg_sta_dat = mean(cov_sta_dat), avg_end_dat = mean(cov_end_dat), num_candidate = n())
+  
+```
+
+**Ans: I chose to use drop_na() function to get rid of the missing values after I have selected only the desired variable columns.**
+
+
+(d) Find the latest coverage start dates (`cov_sta_dat`) by incumbency status (`can_inc_cha_ope_sea`).
+
+
+```{r}
+fec_mn|>
+  select(can_inc_cha_ope_sea, cov_sta_dat)|>
+  group_by(can_inc_cha_ope_sea)|>
+  slice_max(cov_sta_dat, n = 1)
+```
+
+
+
+
+(e) You probably noticed something weird. The code below uses the function `which` to identify the row of the data that is the problem, then we can use View() to see that row plus the one above and below it.
+Describe what you think happened (why does the data look like this?)
+
+```{r, eval = FALSE}
+which(fec_mn$can_inc_cha_ope_sea == "5440 MOREHOUSE DRIVE #4000")
+View(fec_mn[17:19, ])
+```
+
+
+Since row 18 mostly has missing data anyway, we will remove it for now:
+```{r}
+fec_mn <- fec_mn %>% slice(-18)
+```
+
+(f) Now that you have removed the unusual row, let's find the latest start by incumbency status again. This time, print the entire row of information so we can see the candidate's name! (Hint: slice_max instead of summarize!!!)
+
+
+
+3. (a) What type of variable is `ind_con`?  Why did R treat it as this variable type?
+
+
+(b) Convert the ind_con variable to numeric, and then find the maximum individual contributions (`ind_con`) by party. Calcuate the max both with na.rm = TRUE and with na.rm = FALSE. How does max behave with missing values? Is this what you would have expected?
+
+
+
+(c) Note that NA values in the ind_con variable indicate that no individual contributions were made (e.g. \$0). How should we calculate the mean? This code adds two columns to the table: What is Mean_narm doing? What is Mean_sum_over_n doing? Which is a better way to calculate the mean? 
+
+
+4.  Your final tibble should be 88 x 23 after selecting variables in (1c), mutating dates in (2a), creating a new variable in 2b, and removing a row in (2e).  Write this tibble to your student folder as a csv file. Show that when you read it back to R, the column specifications are maintained. (Use write_csv to write the file; then read_csv to read it back in; then print out the dataset!)

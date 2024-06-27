@@ -1,0 +1,187 @@
+---
+title: "MSCS 264: Homework #8"
+subtitle: "Due Fri, March 10"
+author: "Al Ashir Intisar"
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  html_document: default
+  word_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, incldue = FALSE}
+library(tidyverse)
+```
+
+
+
+# Part 1: Spotify 
+This dataset includes information about over 30,000 songs on spotify. We will investigate the relationship of various characteristics to the genre of the song.  The variable `playlist_genre` indicates the genre associated with the playlist the song appears in. 
+
+```{r}
+bigspotify <- readr::read_csv('https://raw.githubusercontent.com/rfordatascience/tidytuesday/master/data/2020/2020-01-21/spotify_songs.csv')
+
+bigspotify
+```
+
+
+1. The three plots below examine the characteristics `tempo` (the speed of the beat of the song, higher is faster),`valence` (the emotionality ... higher is more positive, lower is more negative), and `energy` (higher means the song feels more active and intense). 
+
+```{r}
+ggplot(bigspotify) +
+  geom_density(aes(x = tempo, color = playlist_genre)) + 
+  labs(title = "Tempo by Genre")
+```
+
+**Ans: From the graph we can see that the edm has highest center and least spread and the shape is more like a bell curve. The other songs have almost similar spread and center but has two bumps (not like a bell curve).**
+
+```{r}
+ggplot(bigspotify) + 
+  geom_density(aes(x = valence, color = playlist_genre))+ 
+  labs(title = "Valence by Genre")
+```
+
+**Ans: From this we can see that edm has the lowest center and latin has the highest center. The rest of the genres have similar center. All the genres have similar spread but edm and latin are not so bell curve like.**
+
+```{r}
+ggplot(bigspotify) + 
+  geom_density(aes(x = energy, color = playlist_genre))+ 
+  labs(title = "Energy by Genre")
+```
+
+**Ans: From the graph above we can see that edm and rock has the highest center and edm has probably the lowest spread. Th rest of the genres look similar with somewhat bell curve like shape.**
+
+Write 1-2 sentences for each plot, describing what each tells us about how characteristics are related to genres. Be sure to mention things like shape, center and spread!
+
+
+2. Choose one of the three characteristics plotted in #1 (tempo, valence, energy), and create a different type of visualization (e.g.  a different geom_ ) which allows you to compare the distribution of that characteristic across the different genres. Write 1 - 2 sentences of the pros and cons of each type of visualization.
+
+```{r}
+ggplot(bigspotify) +
+  geom_density(aes(x = tempo, color = playlist_genre)) + 
+  labs(title = "Tempo by Genre")
+```
+
+**Ans: This graph helps us to see the spread of the data better but only gives a idea about the median value/center.**
+
+```{r}
+ggplot(bigspotify) +
+  geom_boxplot(aes(y = tempo, color = playlist_genre)) + 
+  labs(title = "Tempo by Genre")
+```
+
+**Ans: Whereas the geom_boxplot helps us visualize the median value in a better was and the outliers. But it is not as good as the geom_density for visualizing the skewedness of the distribution.**
+
+3. Consider the density graph for energy in #1. Copy and modify the code so that the legend order is by median energy level, with the highest energy listed first and lowest energy last. (e.g. edm should be the first genre listed, and r&b the last genre). Change the legend label to say "Genre" and give the plot a meaningful title. *For full credit, use an fct_ function OTHER THAN manually releveling wtih fct_relevel.*
+
+```{r}
+bigspotify|>
+  mutate(playlist_genre = fct_reorder(playlist_genre, energy, .fun = median, .desc = TRUE))|>
+  ggplot() + 
+  geom_density(aes(x = energy, color = playlist_genre))+ 
+  labs(title = "Density graph of Energy against Genre of songs in spotify playlist", color = "Genre")
+  
+```
+
+
+4. Create a graph that shows the relationship between mode (major, minor) and genre. Write 1-2 sentences describing what the plot shows. 
+
+```{r}
+bigspotify|>
+  mutate(mode = as.factor(mode))|>
+  mutate(mode = fct_recode(mode, "Minor" = "0", "Major" = "1"))|> #assuming 1 is major and 0 is minor
+  ggplot() + 
+  geom_bar(mapping = aes(playlist_genre, fill = mode),  position = "fill")+
+  labs(title = "Relationship between mode (major, minor) and genre.")
+```
+
+**Ans: This geom_bar graph shows what portion of each genre songs is either minor or major in terms of mode. I assumed the value 1 for mode is major and value 0 for mode is minor.**
+
+5. Modify the set of scatterplots below to make them easier to read. Write 1-2 sentences describing what the plot shows. (See EDA_CheatSheet or EDA_pros_and_cons Rmd files for ideas)
+
+
+```{r}
+ggplot(bigspotify, aes(x = energy, y = danceability, color = playlist_genre)) +
+  geom_bin2d() + 
+  geom_smooth(se = FALSE, color = "red", size = 0.5) + 
+  facet_wrap(~playlist_genre)
+```
+
+**Ans: The graph above uses geom_bin2d to show the overlapping of the points in a better way by using grids with certain number of counts represented by certain shade of the color blue.**
+
+# Part 2: Look what you've learned!
+
+Run this code to read in the basketball data
+```{r}
+library(rvest)
+
+url <- glue::glue("http://www.basketball-reference.com/leagues/NBA_2022_totals.html")
+
+bball <- read_html(url) %>% 
+  html_nodes("#totals_stats") %>% 
+  html_table() %>%
+  data.frame(check.names = FALSE) %>%
+  as_tibble() %>%
+  mutate(across(G:PTS, parse_number),
+         points_per_minute = PTS/MP,
+         Pos = str_sub(Pos, 1,2),
+         Pos = str_replace(Pos, "-", "")) %>%
+  rename(FGpct = `FG%`,
+         FTpct = `FT%`) %>%
+  filter(MP > 10)
+```
+
+6. On homework 3, we used the basketball data to make a boxplot of points scored by position. 
+Modify the code below so that: 
+
+* You use pipes.
+* The boxes are ordered by median points
+
+```{r}
+bball|>
+  filter(G >=58)|>
+  mutate(Pos = fct_reorder(Pos, PTS, .fun = median, .desc = TRUE))|>
+  ggplot(aes(x = PTS, y = Pos, color = Pos)) +
+  geom_boxplot()
+```
+
+
+
+7. Also on homework 3, we use the General social survey data to create this bar chart.
+
+Modify the code so that madeg and degree are in order: Lt High School, High School, Junior College, Bachelor, Graduate. Also drop any responses where degree is NA, but keep responses where madeg is NA. 
+
+```{r}
+gss_sm <- read_csv("~/Mscs 264 S23/Class/Data/gss_sm.csv")
+
+gss_sm|>
+  filter(!is.na(degree))|>
+  mutate(madeg = fct_relevel(madeg, "Lt High School", "High School", "Junior College", "Bachelor", "Graduate"))|>
+  mutate(degree = fct_relevel(degree, "Lt High School", "High School", "Junior College", "Bachelor", "Graduate"))|>
+  ggplot(aes(x = madeg, fill = degree)) +
+  geom_bar(position = "fill") +
+  labs(x = "Mother's highest degree",
+       fill = "Respondent's Degree")
+```
+
+
+
+
+8. Create an alternative plot type to show the relationship in 7. (See EDA_CheatSheet.Rmd in Class > Code for ideas). Write 1-2 sentences describing pros and cons of each plot type.
+
+```{r}
+gss_sm|>
+  filter(!is.na(degree))|>
+  mutate(madeg = fct_relevel(madeg, "Lt High School", "High School", "Junior College", "Bachelor", "Graduate"))|>
+  mutate(degree = fct_relevel(degree, "Lt High School", "High School", "Junior College", "Bachelor", "Graduate"))|>
+  ggplot(aes(x = madeg, y = degree, color = madeg)) +
+  geom_count() +
+  labs(x = "Mother's highest degree", y = "Respondents' highest degree",
+       fill = "Respondent's Degree")
+```
+
+**Ans: The pros of the geom_bar is that it shows the proportion of the respondent's degree with respect to their mother's degrees very well. But it fails to whos the number of respondents that are available in each geoup. The pros for geom_count is that it shows the count of each group with respect to others and the somewhat the proportions as well in each degree groups of the respondents.**
+       

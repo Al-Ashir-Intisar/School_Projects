@@ -1,0 +1,192 @@
+---
+title: "MSCS 264: Homework #6"
+subtitle: "Due Friday March 3"
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  word_document: default
+  html_document:
+    df_print: paged
+editor_options: 
+  chunk_output_type: console
+author: YOUR NAME HERE
+---
+
+> Save this file as HW6_YOUR_NAME.Rmd and change the author above.
+
+For this assignment, you will continue your work with the flights data.
+
+**First filter so you are only examining flights that were not cancelled using the code chunk below (after removing `eval = FALSE`)**.
+
+```{r, setup, include=FALSE}
+library(tidyverse)
+library(nycflights13)  
+```
+
+```{r}
+not_cancelled <- flights %>% 
+  filter(!is.na(dep_delay), !is.na(arr_delay))
+```
+
+
+# Part 1: Debugging practice
+Finding and fixing problems in code is known as "debugging". 
+Before attempting these problems, try out Chunk 1 and Chunk 2 of ch5_6_debugging_practice.Rmd in the Class Code folder. I also put in the key for these two!
+
+As you think about debugging, here are some general tips. 
+* First, read the entire error message. Even if you cannot tell what exactly the problem is, the message might give you a hint about where the problem is (which line of code). 
+
+* Closely examine the code and envision (or sketch!) what you THINK the code should be doing. 
+
+* Run just one line at a time, and compare to your sketch of what you think should be happening. 
+
+
+In this homework, we will tackle Chunk 3 and 4 of the debugging worksheet. (They are copied here.)
+
+1. Make a copy of this chunk. Fix it so it works. Give a short explanation about the problem and/or why your solution works.
+
+```{r, error = TRUE}
+# Chunk 3 - will get error in ggplot
+not_cancelled %>%
+  group_by(carrier) %>%
+  summarise(num_flights = n(),
+            total_dist = sum(distance)) %>%
+  mutate(avg_dist = total_dist / num_flights)
+
+ggplot(data = not_cancelled, aes(x = num_flights, y = avg_dist)) +
+  geom_point()
+```
+
+
+
+```{r}
+# Chunk 3 - will get error in ggplot
+not_cancelled %>%
+  group_by(carrier) %>%
+  summarise(num_flights = n(),
+            total_dist = sum(distance)) %>%
+  mutate(avg_dist = total_dist / num_flights)%>%
+  ggplot(aes(x = num_flights, y = avg_dist)) +
+  geom_point()
+```
+
+**Ans: The mutated dataframe was not passed onto the ggplot() function so it could not find the variable num_flights in the no_canclled dataframe>**
+
+2. Make a copy of this chunk. Fix it so it works. Give a short explanation about the problem and/or why your solution works.
+
+```{r, error = TRUE}
+# Chunk 4 - will get blank ggplot
+flights %>%
+  select(air_time, hour) %>%
+  mutate(air_time_hours = air_time / 60) %>%
+  group_by(hour) %>%
+  summarize(mean_airtime = mean(air_time_hours)) %>%
+  ggplot(aes(x = hour, y = mean_airtime)) +
+    geom_point() +
+    geom_smooth()
+```
+
+```{r, error = TRUE}
+# Chunk 4 - will get blank ggplot
+flights %>%
+  select(air_time, hour) %>%
+  filter(!is.na(air_time))%>%
+  mutate(air_time_hours = air_time / 60) %>%
+  group_by(hour) %>%
+  summarize(mean_airtime = mean(air_time_hours)) %>%
+  ggplot(aes(x = hour, y = mean_airtime)) +
+    geom_point() +
+    geom_smooth()
+```
+
+**Ans: The dataset had values in airtime that were NA and that was making the mean NA because any arithmatic done with NA is NA.**
+
+# Part 2: group_by and summarize
+
+3. Find the furthest distance for each origin airport. 
+
+```{r}
+not_cancelled|>
+  select(origin, distance)|>
+  group_by(origin)|>
+  summarise(max_distance = mean(distance))
+  
+```
+
+
+4. Find the average arrival delay at MSP compared to ORD (Chicago-O'Hare). (hint: use filter, group_by, and summarize!)
+
+```{r}
+not_cancelled|>
+  select(dest, arr_delay)|>
+  filter(dest %in% c("MSP", "ORD"))|>
+  group_by(dest)|>
+  summarise(avg_arr_delay = mean(arr_delay))
+```
+
+
+5.  We are going to create a plot that looks like the one in  the Homework/images folder called "carrier_distance_number.png". To do so, do each of the following steps. Check each step as you go, then connect it to the next with a pipe.
+
+
+- use group_by and summarize to create the necessary variables *for each carrier*: mean distance, mean arrival delay, and number of flights. 
+
+- make a plot using geom_point and the appropriate aesthetics. Doe you see any outliers?
+
+- insert a "filter" before your ggplot to remove carriers with unusually high mean distances.
+
+```{r}
+tbl_5 <- not_cancelled|>
+  select(carrier, distance, arr_delay)|>
+  group_by(carrier)|>
+  summarise(mean_distance = mean(distance), mean_arrival_delay = mean(arr_delay), num_flights = n())|>
+  filter(mean_distance < 3000)|>
+  ggplot(aes(mean_distance, mean_arrival_delay))+
+  geom_point(aes(size = num_flights))+
+  geom_smooth(se = FALSE, method = "lm")
+           
+```
+
+```{r}
+tbl_5
+```
+
+
+6. Comment on what you learn from the above plot.
+
+**Ans: A linear model be a better fit when we get rid of the outliers. And we need to get rid of the outliers before we plot the dtat.**
+
+7. We are going to make the plot in homework/images/prop_delay_by_hour_carrier.png.
+The x axis is the scheduled departure hour (`hour`). The y axis is the proportion of flights in that hour that have a departure delay greater than 10 minutes. Each line represents one of three carriers: AA, DL, UA.
+Hint: you'll need filter, group_by and summarize! Try sketching the data on paper before you write your code, and be sure to check your data before you pipe it into your ggplot()!
+
+```{r}
+not_cancelled|>
+  select(carrier, dep_delay, hour)|>
+  filter(carrier %in% c("AA", "DL", "UA"))|>
+  group_by(carrier, hour)|>
+  summarise(prop_delay = (sum(dep_delay > 10))/length(dep_delay))|>
+  ggplot(aes(hour, prop_delay))+
+  geom_line(aes(color = carrier))
+           
+```
+
+
+8. Comment on what trends you see in the graph.
+
+**Ans: As the hour increases the proportion of flights that has a departure delay greater than 10 minutes increases and hits the peak around midnight for all three arilines.**
+
+
+9. Copy and modify your code from 7 so that there are three separate plots, one for each origin airport (hint: facet_wrap)
+
+```{r}
+not_cancelled|>
+  select(carrier, dep_delay, hour, origin)|>
+  filter(carrier %in% c("AA", "DL", "UA"))|>
+  group_by(carrier, hour, origin)|>
+  summarise(prop_delay = (sum(dep_delay > 10))/length(dep_delay))|>
+  ggplot(aes(hour, prop_delay))+
+  geom_line(aes(color = carrier))+
+  facet_wrap(~origin)
+```
+

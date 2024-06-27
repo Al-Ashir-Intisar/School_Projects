@@ -1,0 +1,303 @@
+---
+title: "MSCS 264: Homework #14"
+subtitle: "Due Fri, April 21 at 11pm"
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  word_document: default
+  html_document:
+    df_print: paged
+editor_options: 
+  chunk_output_type: console
+author: Al Ashir Intisar
+---
+
+As always, submit your knitted pdf file to Moodle, but be sure your RMarkdown file is saved and accessible in your Submit folder on the RStudio server.
+
+```{r, include = FALSE, message=FALSE}
+library(tidyverse)
+library(rvest)
+library(robotstxt)
+```
+
+
+# Part 1: Movie info
+
+The code below shows our in class example, in which we are interested in the top 50 comedy movies. 
+
+```{r}
+url <- "https://www.imdb.com/search/title/?genres=comedy&explore=title_type,genres&pf_rd_m=A2FGELUUNOQJNL&pf_rd_p=3396781f-d87f-4fac-8694-c56ce6f490fe&pf_rd_r=53SZV13A3K466YFN35S1&pf_rd_s=center-1&pf_rd_t=15051&pf_rd_i=genre&ref_=ft_gnr_pr1_i_1"
+
+robotstxt::paths_allowed(url) #Don't forget!!!!
+
+title <- read_html(url) %>%
+  html_nodes(".lister-item-header a") %>%
+  html_text()
+
+year <- read_html(url) %>%
+  html_nodes(".text-muted.unbold") %>%
+  html_text()
+
+info <- read_html(url) %>%
+  html_nodes(".text-muted:nth-child(2)") %>%
+  html_text() %>%
+  str_trim()
+
+info
+
+
+movies <- tibble(movie = title, 
+       year = year, 
+       info = info)
+
+movies
+```
+
+1. Modify the code above to also create a column that includes the text of the description of the movie. 
+
+```{r}
+description <- read_html(url) %>%
+  html_nodes("#main p:nth-child(3) , p.text-muted:nth-child(4)") %>%
+    html_text() %>%
+    str_trim()
+
+movies <- tibble(movie = title, 
+                 year = year, 
+                 info = info,
+                 description = description)
+
+movies
+
+```
+
+
+2. Explain why you might have trouble adding a column that indicates the number of votes. 
+
+
+```{r}
+votes <- read_html(url) %>%
+  html_nodes("p.sort-num_votes-visible") %>%
+  html_text()
+```
+
+
+**Ans: Even though in the website we can see every movie have number of votes but when I try to scrape it it looks like there is only 48 rows which is inconsistent with the dimension of the movies dataset we ctreated.** 
+
+
+
+3. We will add a column called "content_rating" to the movies tibble, by completing the following steps: 
+- create a column that is the first 5 characters of the "info" variable. 
+
+```{r}
+content_rating <- str_sub(info, 1, 5)
+```
+
+
+- use str_trim() to remove ending spaces and \\n. 
+
+```{r}
+content_rating <- str_trim(content_rating)
+```
+
+
+- What to do about the things that are not ratings? Use the following list of "valid_ratings" and an ifelse statement to change these values to NA.
+
+```{r}
+valid_content_ratings <- c("G", "PG", "PG-13", "R", "TV-PG", "TV-14", "TV-MA", "18+")
+
+movies <- movies %>%
+  mutate(content_rating = ifelse(!(content_rating %in% valid_content_ratings), NA, content_rating))
+```
+
+
+4. Notice that the year column has the format (xxxx) if it is a movie, and (xxxx- xxxx) if it is a show. Use to create a variable that indicates the type (movie or show). Hint: detect "-"
+
+```{r}
+movies <- movies %>%
+  mutate(category = ifelse(str_detect(year, "–"), "show", "movie"))
+```
+
+
+5. Count how many are movies and how many are shows.
+
+```{r}
+movies|>
+  summarise(num_movie = sum((category == "movie")), num_show = sum((category == "show")))
+```
+
+
+6. Create a variable that is the year as a numeric variable. For a show, the year column should show the first year.
+
+```{r}
+movies <- movies|>
+  mutate(year = parse_number(year))
+```
+
+
+# Part 2: TV show characters
+
+Go to this website:  transcripts.foreverdreaming.org
+
+Find a TV show that you like. Your goal is to create a graph similar to those in images/hw14_tv_lines.png.  (You can choose to make either the bar graph, or the line plot, your choice!)
+
+As you can see, I've chosen to use the 9 season finale episodes for the TV show "The Office". Then, I determine the 5 characters with the most lines (across all the episodes), and then create the graphs.  I'll walk you through the steps!
+
+* Pick any show of your choice! I chose to use all the season finales, but you could just pick all the shows in one season, or whatever you want. Just be sure to have at least 5 episodes. 
+
+7. Start with one episode. Navigate to the page with the transcript. Use selector gadget to pull: 
+
+```{r}
+episode_url <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=6375"
+
+robotstxt::paths_allowed(episode_url) #Don't forget!!!!
+
+
+```
+
+
+- a vector of all the speakers of each line. 
+
+```{r}
+content <- read_html(episode_url) %>%
+  html_nodes(".content") %>%
+  html_text()
+
+
+speakers <- regmatches(content, gregexpr("\\w[A-Z]+:", content))|>
+  unlist()
+speakers <- gsub(":", "", speakers)
+```
+
+
+- the name/title of the episode. 
+
+```{r}
+ep_title <- read_html(episode_url) %>%
+    html_nodes(".first a") %>%
+    html_text()
+```
+
+
+
+8. Put these two things together in a tibble, for example: 
+```
+tibble(speaker, episode_title = episode)
+```
+
+```{r}
+gilmore_girls <- tibble(speakers, episode_tittle = ep_title)
+```
+
+
+9. Write a function that will do steps 7 and 8, that has the url of the episode as in the input, and a tibble as the output. Then use bind_rows() to put the resulting tibbles together. (See hw 12 key). 
+
+```{r}
+scrape_ep <- function(ep_url){
+  robotstxt::paths_allowed(ep_url) 
+  
+  content <- read_html(ep_url) %>%
+    html_nodes(".content") %>%
+    html_text()
+
+
+  speakers <- regmatches(content, gregexpr("\\w[A-Z]+:", content))|>
+    unlist()
+  speakers <- gsub(":", "", speakers)
+  
+
+  ep_title <- read_html(ep_url) %>%
+    html_nodes(".first a") %>%
+    html_text()
+
+  tibble(speakers, episode_tittle = ep_title)
+  
+}
+```
+
+
+```{r}
+s4_ep15 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=6375"
+s4_ep16 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=6376"
+s4_ep17 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=6377"
+s4_ep18 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=6378"
+s4_ep19 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=6379"
+s4_ep20 <- "https://transcripts.foreverdreaming.org/viewtopic.php?t=6380"
+
+ep_15 <- scrape_ep(s4_ep15)
+ep_16 <- scrape_ep(s4_ep16)
+ep_17 <- scrape_ep(s4_ep17)
+ep_18 <- scrape_ep(s4_ep18)
+ep_19 <- scrape_ep(s4_ep19)
+ep_20 <- scrape_ep(s4_ep20)
+
+
+gilmore_girls <- ep_15 |>
+bind_rows(ep_16) |>
+bind_rows(ep_17) |>
+bind_rows(ep_18) |>
+bind_rows(ep_19) |>
+bind_rows(ep_20) 
+```
+
+
+10. Add columns to your resulting tibble that includes the season number and the episode number. Be sure these are numeric! Write this csv file to your student submit folder. (As an example, see office_finales.csv in the Class/Data folder).  (Note: If you weren't successful in your scraping, you can use office_finales.csv for problems 11-14. If you want credit for this problem, also show me how you'd create the variables season and episode from "episode_title")
+
+```{r}
+gilmore_girls <- gilmore_girls|>
+  mutate(season = parse_number(episode_tittle))|>
+  mutate(episode = parse_number(str_sub(episode_tittle, 3)))
+```
+
+```{r}
+write_csv(gilmore_girls, "~/Mscs 264 S23/Submit Section A/Homeworks /gilmore_girls.csv")
+```
+
+
+11. From your tibble, find the 5 characters with the most lines.
+
+```{r}
+gilmore_girls|>
+  group_by(speakers)|>
+  summarise(line_ct = n())|>
+  slice_max(line_ct, n = 5)
+```
+
+
+12. Create a vector that lists these 5 characters names. Use it to filter your tibble to include only these 5 characters. 
+
+```{r}
+main_chr <- gilmore_girls|>
+  group_by(speakers)|>
+  summarise(line_ct = n())|>
+  slice_max(line_ct, n = 5)|>
+  select(speakers)
+
+```
+
+
+```{r}
+gilmore_girls_main <- gilmore_girls|>
+  filter(speakers %in% main_chr$speakers)
+```
+
+
+13. From this filtered tibble, you should be able to create either a bar graph or a line graph! (It may take more data summarization!). Use appropriate titles, axis and legend labels, and a theme/color palette of your choice. Be sure to order the legend according to most lines spoken over all. (For line graph, could also order by the order in the last episode).
+
+```{r}
+gilmore_girls_main|>
+  group_by(speakers, episode)|>
+  summarise(count = n())|>
+  ungroup()|>
+  ggplot(aes(x = episode, y = count, color = fct_reorder2(speakers, episode, count, .fun = sum)))+
+  geom_line()+
+  geom_point()+
+  labs(title = "Number of lines by top 5 characters in\n'Gilmore Girls' season 4 episode 15-20.",
+       x = "Season 4 episodes", y = "Number of lines", color = "Character")
+  
+```
+
+
+14. Tell me something interesting that you see when you look at your graph! Hopefully you've picked a show you like, so you may have some background knowledge/insights!
+
+**Ans: We can see that Lorelai is high up in the graph for all 6 episodes because she is the main character of the season. Another fact is that Paris and Rory had a steep rise on episode 17. Looks like their rise and fall is simultaneous because they go to the same school and hate each other. They don't have any related character in common an they hate each other. Therefore, when Paris has a scene it's almost always with Rory.**

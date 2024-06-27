@@ -1,0 +1,177 @@
+---
+title: "HW 7"
+subtitle: "Due Tuesday March 7"
+author: "YOUR NAME HERE"
+date: "3/10/2022"
+output:
+  pdf_document: default
+  html_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+> Change author to your name and save your file as HW7_YOURNAMEHERE.Rmd to your Submit folder.
+
+```{r, setup, include=FALSE}
+library(tidyverse)
+library(nycflights13)
+
+# avoid NA issue by removing cancelled flights before finding mean
+not_cancelled <- flights %>% 
+  filter(!is.na(dep_delay), !is.na(arr_delay))
+```
+
+
+## For the following problems, we will use the not_cancelled dataset.
+
+1.  Create a plot with 3 lines - 1 per origin airport - where each line connects the mean distance of flights by hour.  Be sure the legend reflects the order of origin airports at the latest hour (in terms of mean distance).  What conclusions can you draw from the plot?  (Hint: you might need two variables in your `group_by` statement, and you should consider `fct_reorder2`) 
+You can see what your graph should look like in homework/images/hw7_hour_dist_origin.png
+
+```{r}
+not_cancelled%>%
+  group_by(origin, hour)%>%
+  summarise(mean_dist = mean(distance))%>%
+  ggplot()+
+  geom_line(aes(x = hour, y = mean_dist, col = fct_reorder2(origin, hour, mean_dist)))
+```
+
+
+2. This problem will investigate flights going to O'Hare airport. 
+
+a. Filter not_cancelled to include only flights going to O`Hare (dest = ORD). Create a table showing the proportion of flights which arrive more than 10 minutes late (arr_delay > 10) for each carrier. Arrange the table from largest to smallest proportion using "arrange". 
+
+```{r}
+not_cancelled|>
+  filter(dest == "ORD")|>
+  group_by(carrier)|>
+  summarise(proportion = (sum(arr_delay > 10))/n())|>
+  arrange(desc(proportion))
+```
+
+
+
+b. The two national carriers, United (UA) and American (AA) have a lower proportion delay than the regional carriers (all the others). Use fct_collapse to create two categories "National" and "Regional" and find the proportion late in each group.
+
+```{r}
+not_cancelled|>
+  filter(dest == "ORD")|>
+  group_by(carrier)|>
+  mutate(carrier = fct_collapse(carrier, "National" = c("UA", "AA"), "Regional" = c("OO", "EV", "B6", "MQ", "9E")))|>
+  summarise(proportion = (sum(arr_delay > 10))/n())
+```
+
+
+c. Rather than creating a table of the information in part a., lets make a graph using geom_col. Have one bar for each carrier, and let the y axis indicate the proportion late. See example in homework/images/hw7_ord_late_by_carrier.png. 
+
+```{r}
+not_cancelled|>
+  filter(dest == "ORD")|>
+  group_by(carrier)|>
+  summarise(proportion = (sum(arr_delay > 10))/n())|>
+  ggplot()+
+  geom_col(aes(fct_rev(fct_reorder2(carrier, carrier, proportion)), proportion))
+```
+
+
+d. Add a title and labels to your graph above.
+
+```{r}
+not_cancelled|>
+  filter(dest == "ORD")|>
+  group_by(carrier)|>
+  summarise(proportion = (sum(arr_delay > 10))/n())|>
+  ggplot()+
+  geom_col(aes(fct_rev(fct_reorder2(carrier, carrier, proportion)), proportion))+
+labs(x = "Flight Carriers",
+       y = "Proportion of delayed arrival (arr_delay > 10 minutes).",
+       title = "Proportion of delayed arrivals of each flight carriers.")
+```
+
+
+e. Make a graph similar to above that has categories AA, UA, and "Regional". (Hint: fct_lump, fct_recode).
+
+```{r}
+not_cancelled|>
+  filter(dest == "ORD")|>
+  group_by(carrier)|>
+  mutate(carrier = fct_collapse(carrier, "Regional" = c ("9E", "B6", "EV", "MQ", "OO")))|>
+  summarise(proportion = (sum(arr_delay > 10))/n())|>
+  ggplot()+
+  geom_col(aes(fct_rev(fct_reorder2(carrier, carrier, proportion)), proportion))+
+labs(x = "Flight Carriers",
+       y = "Proportion of delayed arrival (arr_delay > 10 minutes).",
+       title = "Proportion of delayed arrivals with respect to flight carriers.")
+```
+
+
+## For these problems, we will use the gss_cat dataset
+
+3. In this problem, we look at the gss_cat data. Examine the code below. Explain what each line does.
+
+
+```{r}
+by_age <- gss_cat %>%       # 1
+  filter(!is.na(age)) %>%   # 2  
+  count(age, marital) %>%   # 3
+  group_by(age) %>%         # 4
+  mutate(prop = n / sum(n)) # 5
+
+by_age
+```
+
+Line 1: creates a new variable called by_age that will hold the outcome of the pipe
+
+Line 2: filters out any NA values in the age variable (column). 
+
+Line 3: counts the frequency of all possible combinations of age and marital status. 
+
+Line 4: groups the dataset by age.
+
+Line 5: creates the prop variable that stores the proportion of different marital status in each age group. 
+
+
+4. Use fct_reorder2 to reorder the factor levels in the ggplot code below. 
+```{r}
+by_age %>%
+  ggplot(aes(age, prop, colour = fct_reorder2(marital, age, prop))) +
+  geom_line(na.rm = TRUE)
+```
+
+
+
+5. Using the gss_cat data again, create a table that includes:
+- 4 columns: marital status, median hours of tv, mean hours of tv, and number of people
+- Excludes people who did not answer marital status
+- Combines separated and divorced into one category
+- Is arranged by mean tvhours
+- Be sure the number of people EXCLUDES anyone who did not answer the question of TV hours.
+
+```{r}
+gss_cat|>
+  select(marital, tvhours)|>
+  drop_na()|>
+  filter(marital != "No answer")|>
+  mutate(marital = fct_collapse(marital, "Seperated" = c("Separated", "Divorced")))|>
+  group_by(marital)|>
+  summarise(med_tv = median(tvhours), mean_tv = mean(tvhours), n())|>
+  arrange(desc(mean_tv))
+```
+
+
+6. You can copy your code from above as a start. Instead of creating a table, this time we will create a boxplot of the tvhours variable. (Hint: be sure to delete any group_by and summarize from above!). Order the marital status categories according to **mean** tvhours.
+
+**This question is very vague and does not make sense.**
+
+```{r}
+gss_cat|>
+  select(marital, tvhours)|>
+  drop_na()|>
+  filter(marital != "No answer")|>
+  mutate(marital = fct_collapse(marital, "Seperated" = c("Separated", "Divorced")))|>
+  mutate(marital = fct_reorder(marital, tvhours, .fun = mean))|>
+  ggplot()+
+  geom_boxplot(aes(marital, tvhours))
+
+```
+
+

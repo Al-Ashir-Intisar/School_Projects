@@ -1,0 +1,225 @@
+---
+title: "MSCS 264: Homework #4"
+subtitle: "Due Fri, Feb 24 at 11pm"
+author: "AL Ashir Intisar"
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  html_document: default
+  word_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+This homework focuses on mutate and using pipes to connect multiple data transformations together.
+
+
+```{r, message = FALSE}
+library(tidyverse)
+library(lubridate)
+library(nycflights13)
+```
+
+
+
+One of the advantages of pipes is that it makes code very readable. For example, this chunk of code
+
+```{r, eval = FALSE}
+mhealth_full %>%
+  filter(Group == "By Age") %>%
+  rename(date = `Time Period Start Date`) %>%
+  select(date, Subgroup, Value)
+```
+can be read as "Start with mhealth_full dataset, then filter to include only Group "By Age", then rename the Time Period Start Date variable, then select only the variables date, subgroup and value."
+
+
+1. Consider our diamonds dataset. We usually start with code that looks similar to this. Write a sentence that states what this code does (similar to the style above). (Hint: use ?slice_sample to check out help menu).
+
+```{r}
+smaller <- diamonds %>%
+  filter(carat <= 3) %>%
+  slice_sample(n = 1000)
+```
+
+**Ans: slice_sample() function randomly selects rows from the dataset provided where n = number of rows to be selected. The pipeline takles in the dataset diamonds and then filters out the records (rows) with more than 3 carat diamonds and then takes a random 1000 row sample of the filtered data.**
+
+
+2. Your friend wrote the following chunks of code to create a plot. 
+Use pipes to connect from "diamonds" in #1 above, all the way through the plot. Modify the order of steps so that your graph includes the prices for 1000 diamonds that are 1/2 carat or less.
+```{r}
+smaller_graph <- diamonds |>
+  filter(carat <= 0.5) |>
+  slice_sample(n = 1000)|>
+  ggplot() +
+    geom_boxplot(aes(y = color, x = price)) + 
+    labs(y = "Color", x = "Price (USD)", title = "Diamond Color and Price, Diamonds less than 1/2 carat only")
+```
+
+```{r}
+smaller_graph
+```
+
+
+3. Using the diamonds dataset, complete the following steps: 
+
+- restrict to diamonds between 1 and 2 carats (include diamonds exactly 1 carat, but not exactly 2 carats) and color D, E, or F.
+
+```{r}
+diamonds_3 <- diamonds|>
+  filter(carat >=1, carat < 2, color == c("D", "E", "F"))
+```
+
+```{r}
+head(diamonds_3)
+```
+
+
+- create a variable that indicates if the diamond costs more than $10000.
+
+```{r}
+diamonds_3 <- diamonds_3|>
+  mutate("Cost > $10,000" = price>10000)|>
+  arrange(desc(price))
+```
+
+```{r}
+head(diamonds_3)
+```
+
+
+- create a variable that indicates if a diamond is in one of the top clarity categories (hint: high_clar = ifelse(clarity %in% c("VVS2", "VVS1", "IF"), "high clarity", "low clarity"))
+
+```{r}
+diamonds_3 <- diamonds_3|>
+  mutate("high clar" = high_clar <- ifelse(diamonds_3$clarity %in% c("VVS2", "VVS1", "IF"), "high clar", "low clar"))
+```
+
+```{r}
+head(diamonds_3)
+```
+
+
+- create a bar chart that looks like "hw4_clarity_cost_color.png" in the homework images folder.
+
+```{r}
+diamonds_3|>
+  ggplot()+
+  geom_bar(mapping = aes(`high clar`, fill = `Cost > $10,000`), position = "fill")+
+  facet_wrap(~color)+
+  xlab("High Clarity = VVS2, VVS1, or IF rating")
+```
+
+
+For our next problem, we use the basketball data again.
+```{r setup, include = FALSE}
+library(rvest)
+
+url = glue::glue("http://www.basketball-reference.com/leagues/NBA_2022_totals.html")
+
+bball = read_html(url) %>% 
+  html_nodes("#totals_stats") %>% 
+  html_table() %>%
+  data.frame(check.names = FALSE) %>%
+  as_tibble() %>%
+  mutate(across(G:PTS, parse_number),
+         points_per_minute = PTS/MP,
+         Pos = str_sub(Pos, 1,2),
+         Pos = str_replace(Pos, "-", "")) %>%
+  rename(FGpct = `FG%`,
+         FTpct = `FT%`) %>%
+  filter(MP > 10)
+  
+
+bball
+```
+
+4. In the previous homework, we found the top scoring centers using the following steps.  Rewrite this code using pipes. Also add a line using slice_max to print the top 3 scoring centers.
+
+
+```{r}
+bball3 <- bball|>
+  filter(Pos == "C")|>
+  select(Player, Tm, PTS)|>
+  arrange(desc(PTS))|>
+  rename(Team = Tm, "Points Scored" = PTS)
+
+slice_max(bball3, `Points Scored`, n = 3)
+```
+
+
+### Map US trends in COVID vaccinations
+
+In this portion, we are going to replicate the plot of covid vaccinations found here: [CDC webpage for tracking COVID vaccinations](https://covid.cdc.gov/covid-data-tracker/#vaccination-trends). 
+(Note that our dataset only goes through 2022, while the plot on the website goes through 2023.)
+
+
+Read the data into R using the chunk below. 
+
+```{r, message = FALSE}
+library(tidyverse)
+library(lubridate)
+vaccinations <- read_csv("~/Mscs 264 S23/Class/Data/vaccinations.csv")
+vaccinations
+```
+
+5. Using pipes, apply the following transformations to the vaccinations dataset. (Hint: do them one at a time, checking each time to see if it worked, then pipe to the next one.)
+    - `rename` the variables "Total Doses Administered Daily" to "total_daily" and "7-Day Avg Total Doses Daily" to "total_7day_avg"
+    - `select` only the relevant columns: Date, total_daily, total_7day_avg
+    - `mutate` new variaables, total_daily_millions and total_7day_avg_millions by dividing by 1000000.
+
+
+
+```{r}
+vaccinations <- vaccinations|>
+  rename(total_daily = `Total Doses Administered Daily`, total_7day_avg = `7-Day Avg Total Doses Daily`)|>
+  select(Date, total_daily, total_7day_avg)|>
+  mutate(total_daily_millions = total_daily/1000000, total_7day_avg_millions = total_7day_avg/1000000)
+```
+
+```{r}
+head(vaccinations)
+```
+
+    
+
+6. Also create "Date = mdy(Date)" using mutate. What does this do? (Hint: Print the dataset to the console before and after adding this mutate code.)
+
+```{r}
+vaccinations <- vaccinations|>
+  mutate(Date = mdy(Date))
+```
+
+```{r}
+head(vaccinations)
+```
+
+**Ans: The function mdy() reverses the order of how the date is represented. NOw it is presented as Year-Month-Date**
+
+7. Your resulting dataset should look like vax_tidy (see below). (You can use your dataset from above, or just use vax_tidy if you're not confident about #5-6). I've put code to start your plot here.  Add the line for 7-day average to the plot using geom_line. You can see a list of colors available [here](http://www.stat.columbia.edu/~tzheng/files/Rcolor.pdf), and experiment to get the width of the line to look nice.
+
+
+```{r}
+vax_tidy <- read_csv("~/Mscs 264 S23/Class/Data/vax_tidy.csv")
+vax_tidy
+```
+
+
+```{r}
+ggplot(vaccinations) +
+  geom_col(aes(Date, total_daily_millions), color = "black", size = .05)+
+  geom_line(aes(Date, total_7day_avg_millions), color = "purple",  size = 2)
+```
+
+
+8. Add labs to your plot for the y axis and a title. See "hw4_vax_plot.png" in the Homework > images folder as an example of what your resulting plot should look like. 
+
+```{r}
+ggplot(vaccinations) +
+  geom_col(aes(Date, total_daily_millions), color = "black", size = .05)+
+  geom_line(aes(Date, total_7day_avg_millions), color = "purple",  size = 2)+
+  labs(title = "Daily Count of Total Doses Administered and Reported")+
+  xlab("Date")+
+  ylab("Doses (millions)")
+```
+

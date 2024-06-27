@@ -1,0 +1,62 @@
+---
+title: 'MSCS 264: Homework 00'
+subtitle: 'Woo hoo! I love Data Science!'
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+urlcolor: blue
+editor_options: 
+  chunk_output_type: console
+author: Al Ashir Intisar
+---
+
+The purpose of this first homework assignment is to tell me a little about yourself and get used to using an RMarkdown document. We'll use this format for all of our homework this semester. Next week, you'll learn how to embed code into the document to do statistical analysis. This week we are just making a document. You can see my sample answers in hw00_boehm_vock.pdf.
+
+> Start by saving this file to your Submit folder as 'hw00_your_name.Rmd'
+
+Use the [RStudio Cheat Sheet](https://rstudio.com/wp-content/uploads/2015/02/rmarkdown-cheatsheet.pdf) to italicize, bold, and make lists to answer the questions below.
+
+Don't forget to replace YOUR FULL NAME HERE above with your own name! You can also change the title or subtitle of the document, though it should still say Homework 0 in the title!
+
+### 1. What do you prefer to be called? And how do I pronounce it? 
+
+Ans: Inti as in "IN" "Tea".  
+
+
+
+### 2. What is your intended major? Type your answer in italics.
+
+
+Ans: *Computer Science*
+
+
+### 3. Why are you taking this class?  (Delete the ones that don't apply to you, and make it into a bulleted/unordered list)
+
+  * Stats/Data Science concentration
+  * Interested in data science/statistics
+  * To help me get a certain kind of job
+
+
+### 4. What are you most looking forward to this semester? (In this class, or outside of this class!) Write your answer in bold.
+
+Ans: **To improve my GPA**
+
+### 5. Is there anything that you're concerned or anxious about regarding this class? Do you have any other questions for me?
+
+Ans: NO. 
+
+### 6. Tell me more about you! What are your interests? Why are you REALLY taking this class? 
+
+Use at least TWO formatting features (italics, bold, lists, headings... ) 
+
+### I Love Data
+*Data is the future*
+
+* Need to make money.
+* Better job market.
+
+
+> You should: Knit your final Rmd document as a **PDF file**, Export the file to your own machine, and then **Submit file** on Moodle by Friday, February 11 at 11pm. Be sure to LOOK at the pdf file to ensure it has knitted properly and is the correct file!
+
+All homework this semester will be due on Tuesdays and Fridays at 11 pm. 
