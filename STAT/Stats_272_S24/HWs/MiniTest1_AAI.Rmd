@@ -1,0 +1,125 @@
+---
+title: 'Stat 272: Mini-Test #1'
+subtitle: 'Al Ashir Intisar'
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  html_document: default
+  word_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, setup, include=FALSE}
+# Load necessary libraries
+library(ggResidpanel)
+library(GGally)
+library(mosaic)
+library(tidyverse)
+library(Stat2Data)
+
+# Load necessary data
+gestation_data <- read_csv("~/Stats 272 S24/Class/Data/BrainBodyGestation.csv")
+```
+
+------------------------------------------------------------------------
+
+# Mini-Test 1
+
+### Guidelines
+
+-   The Mini-Test is based on diving deeper into the questions from Homework #3 and from class. Complete HW3 **before starting this document.**
+-   Your knitted pdf is due on Moodle by 11:00 PM on **Sunday March 3**.
+-   You are only allowed to use materials from this class: our textbook (Stat2), class notes and handouts, HWs and answer keys, materials on Moodle, and R server files. You may also use R.
+-   No other books or materials, paper or electronic, are allowed unless explicitly approved.  Absolutely no web searches, ChatGPT, etc.
+-   You may not discuss any aspect of this exam with any other person (except your professor). Note: you may work with others on the regular homework assignment questions.
+
+**PLEDGE:** By typing my full name below, I pledge my honor that on this mini-test I have neither given nor received assistance not explicitly approved by the professor and that I have seen no dishonest work.
+
+**SIGNATURE:** (Al Ashir Intisar)
+
+$\bigcirc$ I have intentionally not signed the pledge (replace "$\bigcirc$" with an "**X**").
+
+
+### Brain Weight vs. Body Size in animals
+
+We're going to return to our "gestation" data set from 02_brainweight_code.Rmd and 03_more_brainweight_code.Rmd, but we'll instead focus on modeling Gestation (the number of days of development in the womb before birth) based on body size (Body) in kilograms.
+
+Here is some R code that should help with the questions that follow; you can run new R code if you want, but it isn't necessary.
+
+```{r}
+favstats(~ Body, data = gestation_data)
+favstats(~ Gestation, data = gestation_data)
+
+gestation_data <- gestation_data %>%
+  mutate(logBody = log(Body),
+         logGestation = log(Gestation),
+         Body_centered = Body - median(Body))
+gestation_data
+
+ggplot(gestation_data, aes(x = Body, y = Gestation)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+ggplot(gestation_data, aes(x = logBody, y = Gestation)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+ggplot(gestation_data, aes(x = logBody, y = logGestation)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE)
+
+model1 <- lm(Gestation ~ Body, data = gestation_data)
+summary(model1)
+confint(model1)
+model2 <- lm(Gestation ~ logBody, data = gestation_data)
+summary(model2)
+confint(model2)
+model3 <- lm(logGestation ~ logBody, data = gestation_data)
+summary(model3)
+confint(model3)
+
+model1a <- lm(Gestation ~ Body_centered, data = gestation_data)
+summary(model1a)
+confint(model1a)
+
+predict_at <- tibble(Body = 200)
+predict(model1, new = predict_at, interval = "confidence") 
+predict(model1, new = predict_at, interval = "prediction") 
+
+```
+
+1. State a conclusion based on a t-test for the slope in model1 in context.
+
+**Ans: \textcolor{blue}{The t-score for the slope is 7.756 which means the observed slope is more than 7 SD away from the mean slope under the null hypothesis. Therefore, we are unlikely to get a slope like the observed one due to random chances and therefore, we say that there is a linear relationship between bodyweight and gestation.}**
+
+
+2.  Provide an interpretation of your p-value from (1) in context. For example, if your p-value is .03, carefully explain what is happening 3% of the time.
+
+**Ans: \textcolor{blue}{The observed p-value for the slope is 1.04e-11 which is close to 0. This implies almost 0\% of the times we would expect to observe a slope as extreme as the observed one under the null hypothesis (assuming there is no linear relationship between body weight and gestation).}**
+
+
+3. Interpret the slope from model2 in context.
+
+**Ans: \textcolor{blue}{When the body weight is doubled the mean gestation changes by (28.64 $\times$ log2)}**
+
+
+4. Interpret a 95% confidence interval for the slope in model3 in context, using original units.
+
+**Ans: \textcolor{blue}{We are 95\% confident that if we double the body weight then the median gestation will change by a factor of $2^{291}$ to $2^{284}$}**
+
+
+5. Interpret the intercept from model1a in context.
+
+**Ans: \textcolor{blue}{For a sepcies of average/mean body weight the gestation period is around 131 days.}**
+
+
+6. Use model1 to predict the gestation length for a species with average body size of 200 kg, then interpret a 95% prediction interval in context.
+
+```{r}
+weight_200 <- data.frame(Body = 200)      
+predict(model1, weight_200, interval = "prediction") 
+```
+
+
+**Ans: \textcolor{blue}{We are 95\% confident that the gestation period for an actual species with average body weight 200 kg will be within 0.662 to 339.432 days. }**
+

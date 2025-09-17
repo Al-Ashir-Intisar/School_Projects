@@ -1,0 +1,509 @@
+---
+title: 'Predicting Tumor Cell Type'
+subtitle: 'STAGE 4: Final Report (Emelyce & Inti & Nancy)'
+date: '5/19/2025'
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  html_document: default
+  word_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r, echo=FALSE,results='hide', include=FALSE}
+# Loading libraries
+library(readr)
+library(GGally)
+library(ggplot2)
+library(tidyverse)
+library(tidyr)
+library(mosaic)
+library(gridExtra)
+library(Stat2Data) 
+library(pROC)
+
+```
+
+
+```{r, results='hide', include=FALSE}
+# Readin in the full dataset 
+breast_cancer_data <- read_csv("~/Stats 272 S24/Project/Emelyce_Inti_Nancy /clean_breast_cancer_data.csv")
+
+```
+
+```{r, echo=FALSE, include=FALSE}
+# Dropping unnecessary variables 
+colnames(breast_cancer_data)
+
+data_12_vars <- breast_cancer_data %>% 
+  select(1:12) %>% 
+  mutate(log_radius = log(radius1), log_concavity = log(concavity1)) %>% 
+  mutate(Diagnosis = as.factor(Diagnosis))
+```
+
+## Introduction:
+
+
+Advancements in image analysis softwares has enabled different feature data collection on cellular nucleic level such as nuclear size, shape, texture etc. High resolution images are taken of tissue samples and cell cultures and then analyzed with specialized softwares to extract features on each nucleus. This technological advancement opened a new door to exploration of tumor and cancer cells. The ability to collect these nuclear level features can help analyze and understand differences between normal and cancerous cells. It will be really interesting to find out if any of these features are different in cancerous cells as opposed to normal cells. The diagnosis of breast cancer traditionally has been invasive surgical procedures. But the ability to collect and examine cellular level data from a small amount of tissue of a tumor provides a more efficient and less invasive way to diagnose cancer. A previous study used these nuclear features to distinguish between benign and malignant breast cytology (Wolberg et al. 792) with pretty high classification accuracy (96.2%) for a logistic regression classification model. 
+
+In our project we aim to understand which of these collectable features through high resolution image processing can be used to separate benign cells from malignant cells for breast cancer. The findings can potentially help physicians diagnose cancer patients with higher precision and even enable early detection. We hypothesize that at least one of these features can significantly predict the odds of a cell being benign or malignant. 
+
+
+## Materials and Methods:
+
+In our dataset, the 568 observational (Benign cells: 357; Malignant cells: 211) units are individual tumor cells which are either benign or malignant. The 10 potential predictor variables we plan to explore to predict whether a cell is benign or malignant are: radius, perimeter, area, texture measured as SD of gray-scale values of the image of nucleus, compactness measured as perimeter^2 / area - 1.0, concavity measured as the severity of the concave portions of the contour, concave points measured as number of concave portions of the contour, smoothness measured as local variations in radius length, symmetry, and fractal dimension (Street, Wolberg, & Mangasarian, 1993). The values for area are expressed as $\mu m^2$ (square micrometers), while for radius and perimeter they are expressed as $\mu m$ (micrometers). Values for remaining features are dimensionless (Wolberg et al. 792).
+
+
+
+The original dataset contained 3 measures of each of these variables. We are only going to use the first measurement of each of the variables and build a smaller dataset with just 12 variables made up of ID (unique identifier for each observation), Diagnosis (benign or malignant) as response variable and the 10 potential predictor variables. Although the multiple measurements of the variables could potentially help us build a more accurate model, our aim in this study is to find features that are helpful in diagnosing cancer cells as opposed to building an accurate model for cancer cell prediction.
+
+We performed exploratory data analysis (EDA) to investigate existing correlations between the quantitative predictor variables, distribution of the quantitative predictor variables based on response variable, and the need for variable transformation.  
+
+We found that most of the predictor variables are correlated with at least one other predictor variable with some highly correlated pairs such as radius & perimeter with correlation coefficient 0.998, radius & area with non-linear correlation coefficient 0.987 (quadratic: since area is a quadratic function of radius), and perimeter & area with non-linear correlation coefficient 0.987 (quadratic: since perimeter is a linear function of radius). For a relatively spherical object such as a cell nucleus these high correlations between radius, perimeter and area is reasonable. The matrix scatter plot in Figure 1 below shows some of these correlated predictors. The matrix scatter plot of all the predictor variables is attached in the appendix. 
+
+
+```{r, fig.align='center', fig.height=6, fig.width=8, echo=FALSE}
+# Matrix scatter plot 
+# radius, perimeter, area, compactness, concavity, concave points
+data_12_vars %>% 
+  ggpairs(columns = c(3, 5, 6, 8, 9, 10))+
+  labs(title = "Fig 1: Correlations among quantitative predictor variables", )
+```
+
+
+Since almost all of the predictor variables are correlated to some other predictor variables, to deal with multicollinearity we divided the predictor variables into 4 groups based on their high correlation with each other. Group 1: radius, perimeter, and area; Group 2: compactness, concavity, and concave points, Group 3: texture; Group 4: smoothness, symmetry, and fractal dimension. We used stepwise selection using the AIC criteria to build the model with only significant predictors. 
+
+
+We looked at the distribution of radius from group 1 with respect to diagnosis as a conditional density (CD) plot in Fig 2. Both the mean (Benign: 12.15,  Malignant: 17.46) and median (Benign: 12.2, Malignant: 17.3) radius were significantly different between the two types of cells with the mean radius of Benign cells being more than 22 SE below the mean radius of Malignant cells. From group 2 we looked at distribution of concavity in benign and malignant cells as conditional density plot in Fig 3. Both the mean (Benign: 0.046, Malignant: 0.160) (t-score -20.275) and median (Benign: 0.037, Malignant: 0.150) were significantly different between the two types of cells with mean concavity of benign cells being more than 20 SE below mean concavity of Malignant cells. This showed that radius and concavity could be potential predictors of tumor cell type. 
+
+
+```{r, fig.align='center', echo=FALSE, fig.width=9}
+#Radius vs Diagnosis boxplot
+
+cd_radius <- ggplot(data = data_12_vars, mapping = aes(x = radius1, fill = Diagnosis)) +
+  geom_density(position = "fill", alpha = 0.5) +
+  labs(title = "Fig 2: Tumor cell radius based on cell type", fill = "Cell type", x = "Radius length (micrometer)", y = "Density")
+
+
+#Concavity vs Diagnosis
+
+cd_concavity <- ggplot(data = data_12_vars, mapping = aes(x = concavity1, fill = Diagnosis)) +
+geom_density(position = "fill", alpha = 0.5)+
+  labs(title = "Fig 3: Tumor cell concavity based on cell type", fill = "Cell type", x = "Concavity ", y = "Density")
+
+
+grid.arrange(cd_radius, cd_concavity, nrow = 1)
+```
+
+
+Texture is one variable that didn’t have any strong correlation with any other predictor variables. But the distribution of texture was significantly different between benign and malignant cells (CD plots in appendix). The mean (Benign: 17.91, Malignant: 21.65) and median (Benign: 17.39, Malignant: 21.46) texture is significantly different in the between benign and malignant cells with mean texture of benign cells being more than 11 SE below the mean texture of malignant cells. For the last group of predictor variables smoothness, symmetry, and fractal dimension have low to moderate correlation with one or more other predictor variables. The mean smoothness (t-score: -9.22) and symmetry (t-score: -8.02) are significantly different between benign and malignant cells. But the mean of fractal dimension between benign and malignant cells are not significantly different with a t-score of 0.42. This shows that texture, radius, concavity, texture, smoothness, and symmetry can potentially be useful predictors in our model for predicting cell type (Benign or Malignant).
+
+
+We observed obvious right skewed distributions for concavity (Fig 4) and decided to create a new predictor variable with logged concavity. This transformation created a relatively more normal distribution (Fig 5). Some other predictor variables had skewed distributions as well but no transformation resulted in significantly more normal distribution (plots in Appendix). 
+
+
+
+```{r, fig.align='center', fig.width=8, echo=FALSE, message=FALSE, warning=FALSE}
+# Logged concavity
+dist_concavity <- data_12_vars %>% 
+  ggplot(aes(concavity1))+
+  geom_histogram()+
+  labs(title = "Fig 4: Distribution of concavity.", x = "Concavity score")
+
+dist_logged_concavity <- data_12_vars %>% 
+  ggplot(aes(log_concavity))+
+  geom_histogram()+
+  labs(title = "Fig 5: Distribution of logged \n concavity.", x = "Logged concavity score")
+
+grid.arrange(dist_concavity, dist_logged_concavity, nrow = 1)
+
+```
+
+
+We used the stepwise selection to provide a starting point for a model that choose a model with 7 predictor variables out of the 10 potential predictors. Fitting a model with the 7 predictors indicated texture, perimeter, area, and smoothness are significant predictors under regular significance threshold (p-value: 0.05). We hypothesized that symmetry and concave points could interact with area since symmetry and concave points in larger area can have different implication on cell type as opposed to in a small area. The Wald test indicated the interaction between area and symmetry is somewhat significant (p-value: 0.077). A residual deviance test between the models with and without area:texture interaction also indicated the interaction is somewhat significant (Deviance: 3.3525; p-value: 0.067). Our final model is 
+
+$\log(\frac{\pi}{1-\pi}) = -6.5607 + 0.4132 \times Texture - 0.3398 \times Perimeter + 0.0350 \times Area + 102.1947 \times Smoothness + 2.4590 \times LoogedConcavity + 0.0330 \times Area:Symmetry$. 
+
+Where $\pi$ is the probability of a cell being Malignant. 
+
+
+
+## Results
+
+Our final model includes at least 1 predictor variable from the 4 different correlated predicted groups. Despite being highly correlated both area and perimeter we significant predictors. Logged concavity were significant predictor as well. Even though the p-value associated with the interaction between area and symmetry is slightly above the significance threshold we still think it adds more predictive power and kept it in the final model. Table 1 below shows the coefficients, associated z-score, p-value, and 95% confidence interval of our final model.
+
+Table 1: Final model coefficients, test statistics, and p-values. 
+
+| Predictor        | Coefficient | z-score | p-value   | 95% confidence interval
+|------------------|-------------|---------|-----------|---------------------------------|
+| Intercept        | -6.56077    | -1.053  | 0.29227   | -19.826319107 to 5.03551620     |
+| Texture          | 0.41325     | 6.065   | 1.32e-09  | 0.288191746   to 0.55741415     |
+| Perimeter        | -0.33989    | -2.552  | 0.01070   | -0.603799408  to -0.07674807    |
+| Area             | 0.03501     | 3.287   | 0.00101   | 0.014326596   to 0.05643043     |
+| Smoothness       | 102.19475   | 4.605   | 4.13e-06  | 60.289705503  to 148.21096187   |
+| Logged Concavity | 2.45903     | 5.162   | 2.44e-07  | 1.561127531   to 3.45147805     |
+| Area:Symmetry    | 0.03309     | 1.802   | 0.07153   | -0.002306394  to 0.07020787     |
+
+
+
+
+The statistically significant p-value suggests that texture is a strong predictor for cell malignancy. For every one unit increase in texture (measured in SD of gray-scale values of the image of nucleus), the odds of a cell being malignant increase by 51% while holding other variables constant. Cells with higher texture values are more likely to be malignant. On the other hand, one micrometer decrease in perimeter leads to a 40% increase in odds of a cell being malignant after controlling for other variables. This suggests that cells with larger perimeters are less likely to be malignant. One square micrometer increase in area leads to 3.5% increase in the odds of a cell being malignant. This means malignancy is more likely in cells with larger areas. For every one-hundredth of a unit increase in smoothness, the odds of a cell being malignant increase by more than 2 folds after adjusting for other variables. Higher smoothness values indicate a higher likelihood of malignancy. In our final model we used logged concavity since it had a more normal distribution as opposed to just concavity. An one order increase in concavity of a cell increases the odds of it being malignant by 11 folds. Cells with higher concavity values are more likely to be malignant.
+
+
+
+Since our model includes an interaction term between Area and Symmetry, the impact of this interaction is represented by the two model below. For 25th percentile area, one-hundredth of a unit increase in symmetry results in 15% increase of odds of the cell being malignant as opposed 29% odds increase for a 75th percentile area. 
+
+For 25th percentile area the predicted log adds equation is: 
+
+$$\log(\frac{\pi}{1-\pi}) = -6.5607 + 0.4132 \times Texture - 0.3398 \times Perimeter + 0.0350 \times Area + 102.1947 \times Smoothness + 2.4590 \times LoogedConcavity + 13.8666 \times Symmetry$$
+
+For 75th percentile area the log odds equation is: 
+$\log(\frac{\pi}{1-\pi}) = -6.5607 + 0.4132 \times Texture - 0.3398 \times Perimeter + 0.0350 \times Area + 102.1947 \times Smoothness + 2.4590 \times LoggedConcavity + 25.8258 \times Symmetry$
+
+
+
+## Discussion
+
+
+Our study aimed to develop a logistic regression model to distinguish between benign and malignant tumor cells based on nuclear features of the tumor cells. The final model we derived included predictors from four different correlated groups. A higher value for texture, area, smoothness, concavity and symmetry is associated with higher probability of a tumor cell being malignant. On the contrary a higher value for perimeter is associated with lower probability of a tumor cell being malignant. Also the effect of symmetry on the odds of a tumor cell being malignant changes depending on the area. 
+
+
+Further investigation into the effect of perimeter could result into better understanding into why the perimeter has reverse effect compared to area even though they are highly correlated. Also the relationship among area, symmetry and the cell type is worth further investigation to fully understand the interaction and it's effect. 
+
+Our accuracy was about $98.75%$ which is consistent with the previous study of about $96.6$
+
+
+In summary, our logistic regression model provides valuable insights into the nuclear features of tumor cells that are predictive of malignancy. By considering multiple correlated predictor variables, including interactions, our model offers a comprehensive approach to distinguishing between benign and malignant tumor cells. Further validation and refinement of this model could enhance its utility in clinical practice for cancer diagnosis and prognosis.
+
+
+## References
+
+
+*  Wolberg, William H., et al. “Computer-Derived Nuclear Features Distinguish Malignant from Benign Breast Cytology.” Human Pathology, vol. 26, no. 7, 1995, pp. 792–96, https://doi.org/10.1016/0046-8177(95)90229-5.
+* Street, W.N., Wolberg, W.H., & Mangasarian, O.L. (1993). Nuclear feature extraction for breast tumor diagnosis. Electronic imaging.
+
+
+
+## Appendix
+
+
+
+### Exploring correlated variables. 
+
+```{r, fig.align='center', fig.show='hold', warning=FALSE, fig.width=9, fig.height=7}
+
+# Proportions tables for response variable 
+table(data_12_vars$Diagnosis) %>% 
+  addmargins()
+
+table(data_12_vars$Diagnosis) %>% 
+  proportions()
+
+# matrix scatter plot with correlations for all variables 
+data_12_vars %>% 
+  ggpairs(columns = 3:12)+
+  labs(title = "Fig 1: Correlations among quantitative predictor variables", )
+
+```
+
+### Exploring Distribution of each variable
+
+```{r, fig.align='center', fig.show='hold', warning=FALSE}
+
+data_12_vars %>% 
+  ggplot(aes(radius1))+
+  geom_histogram()
+
+data_12_vars %>% 
+  ggplot(aes(perimeter1))+
+  geom_histogram()
+
+data_12_vars %>% 
+  ggplot(aes(area1))+
+  geom_histogram()
+
+data_12_vars %>% 
+  ggplot(aes(texture1))+
+  geom_histogram()
+
+data_12_vars %>% 
+  ggplot(aes(smoothness1))+
+  geom_histogram()
+
+data_12_vars %>% 
+  ggplot(aes(compactness1))+
+  geom_histogram()
+
+data_12_vars %>% 
+  ggplot(aes(concavity1))+
+  geom_histogram()
+
+data_12_vars %>% 
+  ggplot(aes(concave_points1))+
+  geom_histogram()
+
+# Distribution of Symmetry 
+summary(data_12_vars$symmetry1)
+data_12_vars %>% 
+  ggplot(aes(symmetry1))+
+  geom_histogram()
+
+data_12_vars %>% 
+  ggplot(aes(fractal_dimension1))+
+  geom_histogram()
+
+data_12_vars %>% 
+  ggplot(aes(log(fractal_dimension1)))+
+  geom_histogram()
+
+
+
+```
+
+
+### Exploring Individual variable distribution based on response variable
+
+```{r, fig.align='center', fig.show='hold', warning=FALSE}
+#Perimeter vs Diagnosis
+data_12_vars %>% 
+  ggplot(aes(perimeter1, fill = Diagnosis))+
+  geom_density(position = "fill", alpha = 0.5)
+
+#Area vs Diagnosis
+data_12_vars %>% 
+  ggplot(aes(area1, fill = Diagnosis))+
+  geom_density(position = "fill", alpha = 0.5)
+
+
+#Compactness vs Diagnosis
+data_12_vars %>% 
+  ggplot(aes(compactness1, fill = Diagnosis))+
+  geom_density(position = "fill", alpha = 0.5)
+
+#Concave points vs Diagnosis
+data_12_vars %>% 
+  ggplot(aes(concave_points1, fill = Diagnosis))+
+  geom_density(position = "fill", alpha = 0.5)
+
+
+#Fractal Dimension vs Diagnosis
+data_12_vars %>% 
+  ggplot(aes(fractal_dimension1, fill = Diagnosis))+
+  geom_density(position = "fill", alpha = 0.5)
+
+#Radius vs Diagnosis boxplot
+data_12_vars %>% 
+  ggplot(aes(radius1, fill = Diagnosis))+
+  geom_density(position = "fill", alpha = 0.5)+
+  labs(title = "Fig 2: Tumor cell radius based on cell type", fill = "Cell type", x = "Radius length")
+
+# Radius vs Diagnosis favstats
+favstats(radius1~Diagnosis, data = data_12_vars)
+# t-test for determining if the difference in mean is significant
+t.test(radius1~Diagnosis, data = data_12_vars)
+
+#Concavity vs Diagnosis
+data_12_vars %>% 
+  ggplot(aes(concavity1, fill = Diagnosis))+
+  geom_density(position = "fill", alpha = 0.5)+
+  labs(title = "Fig 3: Tumor cell concavity based on cell type", fill = "Cell type", x = "Concavity score")
+  
+
+# Concavity vs Diagnosis favstats
+favstats(concavity1~Diagnosis, data = data_12_vars)
+# t-test for determining if the difference in mean is significant 
+t.test(concavity1~Diagnosis, data = data_12_vars)
+
+#Texture vs Diagnosis
+data_12_vars %>% 
+  ggplot(aes(texture1, fill = Diagnosis))+
+  geom_density(position = "fill", alpha = 0.5)
+
+# Texture vs Diagnosis favstats
+favstats(texture1~Diagnosis, data = data_12_vars)
+# t-test for determining if the difference in mean is significant 
+t.test(texture1~Diagnosis, data = data_12_vars)
+
+
+#Smoothness vs Diagnosis
+data_12_vars %>% 
+  ggplot(aes(smoothness1, fill = Diagnosis))+
+  geom_density(position = "fill", alpha = 0.5)
+# Smoothness vs Diagnosis favstats
+favstats(smoothness1~Diagnosis, data = data_12_vars)
+# t-test for determining if the difference in mean is significant 
+t.test(smoothness1~Diagnosis, data = data_12_vars)
+
+
+#Symmetry vs Diagnosis
+data_12_vars %>% 
+  ggplot(aes(symmetry1, fill = Diagnosis))+
+  geom_density(position = "fill", alpha = 0.5)
+# Symmetry vs Diagnosis favstats
+favstats(symmetry1~Diagnosis, data = data_12_vars)
+# t-test for determining if the difference in mean is significant 
+t.test(symmetry1~Diagnosis, data = data_12_vars)
+
+#Fractal Dimension vs Diagnosis
+data_12_vars %>% 
+  ggplot(aes(fractal_dimension1, fill = Diagnosis))+
+  geom_density(position = "fill", alpha = 0.5)
+# Fractal dimension vs Diagnosis favstats
+favstats(fractal_dimension1~Diagnosis, data = data_12_vars)
+# t-test for determining if the difference in mean is significant 
+t.test(fractal_dimension1~Diagnosis, data = data_12_vars)
+
+```
+
+
+### Exploring simple logistic models with 1 explanatory variables. 
+
+```{r, fig.align='center', fig.show='hold', warning=FALSE}
+
+# Diagnosis~Radius
+logistic_radius <- glm(as.factor(Diagnosis) ~ radius1, family = binomial(link = "logit"), data = data_12_vars)
+
+summary(logistic_radius)
+confint(logistic_radius)
+
+# indicator varible for radius 
+data_indicator <- data_12_vars %>% 
+  mutate(indicator_radius = ifelse(radius1 < 14, "low", "High")) %>% 
+  mutate(indicator_radius = as.factor(indicator_radius))
+
+logistic_radius_ind <- glm(as.factor(Diagnosis) ~ indicator_radius, family = binomial(link = "logit"), data = data_indicator)
+
+summary(logistic_radius_ind)
+confint(logistic_radius_ind)
+
+# checking linearity
+data_indicator$radius_prob <- predict(logistic_radius, type = "response")
+data_indicator$odds <- data_indicator$radius_prob / (1- data_indicator$radius_prob)
+
+# Diagnosis~Concavity
+logistic_concavity <- glm(as.factor(Diagnosis) ~ concavity1, family = binomial(link = "logit"), data = data_12_vars)
+
+summary(logistic_concavity)
+confint(logistic_concavity)
+
+
+# Diagnosis~Texture
+logistic_texture <- glm(as.factor(Diagnosis) ~ texture1, family = binomial(link = "logit"), data = data_12_vars)
+
+summary(logistic_texture)
+confint(logistic_texture)
+
+# Diagnosis~Smoothness
+logistic_smoothness <- glm(as.factor(Diagnosis) ~ smoothness1, family = binomial(link = "logit"), data = data_12_vars)
+
+summary(logistic_smoothness)
+confint(logistic_smoothness)
+
+
+# Diagnosis~Symmetry
+logistic_symmetry <- glm(as.factor(Diagnosis) ~ symmetry1, family = binomial(link = "logit"), data = data_12_vars)
+
+summary(logistic_symmetry)
+confint(logistic_symmetry)
+
+# logged variable concavity
+logged_data <- data_12_vars %>% 
+  mutate(concavity1 = ifelse(concavity1 == 0, concavity1+0.000001, concavity1)) %>% 
+  mutate(log_concavity = log(concavity1))
+
+logged_model <- glm(Diagnosis~log_concavity, family = binomial(link = "logit"), data = logged_data)
+
+summary(logged_model)
+
+```
+
+
+### Checking Logistric regression model conditions. 
+
+```{r, fig.align='center', fig.show='hold', warning=FALSE}
+# emperical logit plot for linearity
+emplogitplot1( Diagnosis ~ radius1, data = data_indicator, out = TRUE, ngroup = 5)
+# modify it for full model 
+# emplogitplot2(Diagnosis ~ radius1+concavity1, data = data_indicator, 
+#               ngroups = 4, out = TRUE, putlegend = "bottomright")
+
+
+```
+
+
+### Exploring potential final model. 
+
+```{r, fig.align='center', fig.show='hold', warning=FALSE}
+data_12_vars <- data_12_vars %>% 
+  mutate(Diagnosis = as.factor(Diagnosis)) %>% 
+  mutate(log_concavity = log(0.000001 + concavity1))
+
+model_0 <- glm(Diagnosis ~ 1, family = binomial, data = data_12_vars)
+  
+model_start <- glm(Diagnosis ~ radius1 + texture1 + perimeter1 + area1 + smoothness1 + compactness1 + log_concavity + concave_points1 + symmetry1 + fractal_dimension1, family = binomial(link = "logit"), data = data_12_vars)
+
+summary(model_start)
+
+step(model_0, direction = "both", scope = formula(model_start))
+
+model_pred7 <- glm(Diagnosis ~ texture1 + perimeter1 + area1 + smoothness1 + log_concavity + concave_points1 + symmetry1, family = binomial(link = "logit"), data = data_12_vars)
+summary(model_pred7)
+
+
+summary(data_12_vars$concave_points1)
+summary(data_12_vars$symmetry1)
+
+data_12_vars <- data_12_vars %>% 
+  mutate(ind_symmetry = ifelse(symmetry1 < 0.1792, "low", "High")) %>% 
+  mutate(ind_con_points = ifelse(concave_points1 < 0.03345, "low", "High"))
+
+model_interaction <- glm(Diagnosis ~ texture1 + perimeter1 + area1 + smoothness1 + log_concavity + area1:symmetry1 , family = binomial(link = "logit"), data = data_12_vars)
+summary(model_interaction)
+
+model_interaction_WO <- glm(Diagnosis ~ texture1 + perimeter1 + area1 + smoothness1 + log_concavity, family = binomial(link = "logit"), data = data_12_vars)
+summary(model_interaction_WO)
+
+anova(model_interaction_WO, model_interaction, test = "Chisq")
+
+
+# final model 
+model_final <- glm(Diagnosis ~ texture1 + perimeter1 + area1 + smoothness1 + log_concavity + area1:symmetry1 , family = binomial(link = "logit"), data = data_12_vars)
+summary(model_final)
+
+```
+
+
+### Interpreting final model
+
+```{r, fig.align='center', fig.show='hold', warning=FALSE}
+
+# # model at 25th and 75th percentile of radius 
+# data_12_vars <- data_12_vars %>%
+#   mutate(pred_25 = -6.5607 + 0.4132*texture1  - 0.3398*perimeter1 + 0.0350*area1  + 102.1947* smoothness1 + 2.4590* log_concavity + 13.8666* symmetry1) %>%
+#   mutate(pred_75 = -6.5607 + 0.4132*texture1  - 0.3398*perimeter1 + 0.0350*area1  + 102.1947* smoothness1 + 2.4590* log_concavity + 25.8258* symmetry1)
+# 
+# data_12_vars %>%
+#   ggplot()+
+#   geom_smooth(aes(area1, pred_25), method = "lm", se = FALSE)+
+#   geom_smooth(aes(area1, pred_75), method = "lm", se=FALSE)
+
+```
+
+
+
+### Assessing model performence 
+
+
+
+
+
+
+
+

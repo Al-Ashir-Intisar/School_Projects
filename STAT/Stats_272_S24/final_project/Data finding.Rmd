@@ -1,0 +1,47 @@
+---
+title: "Data finding Inti"
+author: "Al Ashir Intisar"
+date: "4/5/2024"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+```{r}
+library(tidyverse)
+library(readr)
+
+```
+
+```{r}
+#reading in the CSV
+
+data_breast_cancer <- read_csv("~/Stats 272 S24/Project/Emelyce_Inti_Nancy /breast cancer data wdbc.csv")
+```
+
+
+```{r}
+# Adding the variable names
+
+variable_names <- c(
+    "ID", "Diagnosis",
+    "radius1", "texture1", "perimeter1", "area1", "smoothness1", "compactness1", "concavity1", "concave_points1", "symmetry1", "fractal_dimension1",
+    "radius2", "texture2", "perimeter2", "area2", "smoothness2", "compactness2", "concavity2", "concave_points2", "symmetry2", "fractal_dimension2",
+    "radius3", "texture3", "perimeter3", "area3", "smoothness3", "compactness3", "concavity3", "concave_points3", "symmetry3", "fractal_dimension3"
+)
+
+colnames(data_breast_cancer) <- variable_names
+```
+
+
+```{r}
+write_csv(data_breast_cancer, "~/Stats 272 S24/Project/Emelyce_Inti_Nancy /clean_breast_cancer_data.csv")
+
+```
+
