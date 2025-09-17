@@ -1,0 +1,262 @@
+---
+title: "HW1:Tidyverse"
+author: "Jaime Davila"
+date: "2/7/2025"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message=FALSE)
+```
+
+# Loading our datasets
+
+We will start by using a covid dataset generated from [CovidActNow](covidactnow.org) 
+
+```{r}
+library(tidyverse)
+library(dslabs)
+
+covid_tbl <- read_csv("~/Sds_333_S25/Class/Data/covid.data.csv")
+```
+
+This dataset contains the following variables
+
+* state: Two letter abbreviation of the state
+* actuals.newCases: Number of new covid cases for a particular date in `state`
+* actuals.newDeaths: Number of new covid deaths for a particular date in `state`
+* cases.avg: Rolling 7-day average of new covid cases for a particular date in `state`
+* actuals.newDeaths: Rolling 7-day average of new covid cases for a particular date in `state`
+* date: Date between 04-01-2020 and 08-31-2021
+
+We will also be creating the tibble `states_tbl` which contains information about `region`, `population`, `state` name, and `abb` (two letter abreviation of state name) 
+
+```{r}
+states_tbl <- as_tibble(murders) %>%
+  select(abb,region,population)
+```
+
+
+# Using  the `tidyverse`
+
+If you need to refresh your memory, feel free to refer to use the following references: 
+
+* [tidyverse](http://rafalab.dfci.harvard.edu/dsbook-part-1/R/tidyverse.html) 
+* [ggplot2](http://rafalab.dfci.harvard.edu/dsbook-part-1/dataviz/ggplot2.html)
+* [joining tables](http://rafalab.dfci.harvard.edu/dsbook-part-1/wrangling/joining-tables.html). In particular pay attention to `inner_join()`
+* [reshaping data](http://rafalab.dfci.harvard.edu/dsbook-part-1/wrangling/reshaping-data.html). Pay attention to `pivot_wider()` and `pivot_longer()`
+
+1. 
+
+
+a. Plot the total number (across all states) of new covid cases as a function of the date, using `ggplot`. 
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+new_cases_across_states <- covid_tbl %>% 
+  group_by(date) %>% 
+  summarise(
+    total_new_cases = sum(actuals.newCases)
+  ) 
+
+head(new_cases_across_states)
+```
+
+
+```{r}
+ggplot(new_cases_across_states, aes(x = date, y = total_new_cases)) +
+  geom_line() +
+  labs(
+    title = "Total New COVID Cases Over Time across US",
+    x = "Date",
+    y = "Total New Cases across states"
+  ) 
+```
+
+
+b. Repeat a) but using the rolling 7-day average. Explain why the 7-day average results in a smoother plot
+
+```{r}
+avg_cases_across_states <- covid_tbl %>% 
+  group_by(date) %>% 
+  summarise(
+    total_new_cases = sum(cases.avg)
+  ) 
+
+head(avg_cases_across_states)
+```
+
+
+
+```{r}
+ggplot(avg_cases_across_states, aes(x = date, y = total_new_cases)) +
+  geom_line() +
+  labs(
+    title = "7 day avg New COVID Cases Over Time across US",
+    x = "Date",
+    y = "7 day avg New Cases across states"
+  ) 
+```
+
+**Ans: 7-day average results in a smoother plot becuase the average diminishes the effect of single outliers within that 7 day window. Therefore, although the count of new cases for each individual day might have been quite different from each other within a week window after averaging for the week that differences between days close by goes down. This results in the smoother plot.**
+
+
+2. Different states have different population so it is always a good idea to divide the counts by the state population divided by 100,000 (100k), which will be pulled from our table `states_tbl`
+
+a. Combine `states_tbl` and `covid_tbl` into a new tibble called `covid_states_tbl`
+
+```{r}
+covid_states_tbl <- inner_join(covid_tbl, states_tbl, by = join_by(state == abb))
+head(covid_states_tbl)
+```
+
+
+
+b.  Add columns `cases.100k` and `deaths.100k` to `covid_states_tbl` by dividing `cases.avg` by the population of each state per 100,000.
+
+```{r}
+covid_states_tbl_100k <- covid_states_tbl %>% 
+  mutate(cases.100k = (cases.avg * 100000)/population) %>% 
+  mutate(deaths.100k = (deaths.avg*100000)/population)
+```
+
+
+3) Plot the number the number of deaths by 100k for each of the regions of the USA, using facets for each of the region. How do you interpret these results in terms of "waves" of the pandemic?
+
+```{r}
+ggplot(covid_states_tbl_100k, aes(x = date, y = deaths.100k)) +
+  geom_line(alpha = 0.6) +  
+  facet_wrap(~ region) +  
+  labs(
+    title = "COVID-19 Deaths per 100k Population Over Time by Region",
+    x = "Date",
+    y = "Deaths per 100k"
+  ) 
+```
+
+**Ans: The Northeast region seem to have a higher early peak of deaths compared to the other 3 regions. All the states had a local peak death rate around January 2021. Some states in the south region had death rates that could potentially be identified as outliers during summer 2021.**
+
+
+4) a. Create a tibble with date and number of cases per 100k for Iowa and Wisconsin. Your table should look similar to:
+
+```
+   date          IA    WI
+   <date>     <dbl> <dbl>
+ 1 2020-04-01  ...  ...
+ 2 2020-04-02  ...  ...
+....
+```
+**Hint** Consider using a pivot function
+
+```{r}
+ia_wi_tbl<- covid_states_tbl_100k %>% 
+  filter(state %in% c("IA", "WI")) %>% 
+  select(state, date, cases.100k) %>% 
+  pivot_wider(names_from = state, values_from = cases.100k)
+  
+```
+
+
+b. Do a scatter plot comparing the cases per 100k from WI and IA. Are they  correlated?
+
+```{r}
+plot(ia_wi_tbl$IA, ia_wi_tbl$WI, 
+     xlab = "Iowa Cases per 100k", 
+     ylab = "Wisconsin Cases per 100k", 
+     main = "COVID-19 Cases per 100k: Iowa vs Wisconsin")
+```
+
+
+5) We are interested in calculating the correlation in covid cases across all the states in the Northeast. Create a heatmap representing the correlation across all the Northeastern states
+
+*Hint 1*: The R function `cor()` calculates the correlation across all of the columns of a matrix, so you will need to convert the data into matrix form.
+
+*Hint 2*: Once you have a matrix of correlations you will need to convert/wrangle it into a tibble and plot using `geom_tile()`
+
+```{r}
+covid_100k_mat_tbl <- covid_states_tbl_100k %>% 
+  filter(region == "Northeast") %>% 
+  select(1, 2, 9) %>% 
+  pivot_wider(names_from = date, values_from = cases.100k)
+
+covid_100k_mat <- as.matrix(covid_100k_mat_tbl[,-1])
+
+rownames(covid_100k_mat) <- covid_100k_mat_tbl$state
+rownames(covid_100k_mat)
+covid_100k_mat <- t(covid_100k_mat)
+```
+
+```{r}
+cor_matrix <- cor(covid_100k_mat)
+```
+
+
+```{r}
+cor_tibble <- as_tibble(cor_matrix, rownames = "state") %>%
+  pivot_longer(-state, names_to = "correlated_state", values_to = "correlation")
+```
+
+
+```{r}
+ggplot(cor_tibble, aes(x = state, y = correlated_state, fill = correlation)) +
+  geom_tile() +
+  labs(title = "COVID-19 Case Correlation Heatmap (Northeaster States)", x = "State", y = "Correlated State") +
+  theme_minimal()
+```
+
+
+
+
+6) What are the two different states in the Northeast that are the most correlated? What are the two least correlated?
+
+
+```{r}
+cor_tibble %>% 
+  filter(state != correlated_state) %>% 
+  slice_max(correlation, n = 1, with_ties = FALSE)
+```
+
+
+```{r}
+
+cor_tibble %>% 
+  filter(state != correlated_state) %>% 
+  slice_min(correlation, n = 1, with_ties = FALSE)
+
+
+```
+
+
+**Ans: Most correlated states are CT and RI with correlation 0.966. Least correlated states are RI and VT with with correlation 0.66.**
+
+7. 
+
+    a. What is the first and last name of the professor? (Please check your spelling)
+    
+    Ans: First name: Jaime; Last name: Davila. 
+
+
+    b. What is the first and last name of the TA ? (Please check your spelling)
+    
+    Ans: First name: William; Last name: Asinger.
+
+8.
+
+     a. When are homeworks due for HDDA?
+     
+     Ans: Wednesdays at 6pm.
+
+     b. How much of the final grade does the mid-term exam weight?  Would this be in-class or take-home?
+     
+     Ans: Mid-term exam weighs 25 of the final grade. This exam is in class.
+
+
+     
+
+
+

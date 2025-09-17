@@ -1,0 +1,383 @@
+---
+title: "Recommendation systems using SoftImpute"
+author: "Jaime Davila"
+date: "4/9/2025"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message=FALSE)
+library(tidyverse)
+library(factoextra)
+library(dslabs)
+library(softImpute)
+library(NMF)
+library(pheatmap)
+```
+
+# Before we start
+
+0. 
+
+a. Last class we described a method for completing missing values in a matrix using PCA. Discuss in your table how this method works.
+
+**Ans: \textcolor{blue}{We first initialize the missing values with mean or zeros then conduct PCA and then use the important principal components to reconstruct the entire matrix and then replace the missing cells with the pca computed cell values.}**
+
+
+b. In https://mdl.stolaf.edu/mod/resource/view.php?id=458998, several of the techniques for solving the Netflix Prize are discussed. Which one among did you find most interesting? Which one among them did you know the least (feel free to omit `Restricted Boltzmann Machines`)? Make sure to discuss sections `Matrix Factorization` and `Neighboorhood Models`
+
+**Ans: \textcolor{blue}{One of the most interesting techniques from the Netflix Prize was matrix factorization, particularly SVD-based methods, which decompose users and movies into latent factor vectors. This approach captures global patterns and can adapt to temporal dynamics and implicit feedback, making it a powerful recommendation strategy. On the other hand, I was least familiar with neighborhood models, which rely on finding similar items or users to make predictions. Although simpler and more intuitive, they face challenges with weighting and redundancy, especially when neighbors are correlated.}**
+
+
+# Introduction
+
+For our activity today we will be using `movielens` dataset from the `dslabs` package. First we will select the top-20 movies from 2013 onward
+
+```{r}
+data("movielens")
+
+top_tbl <- movielens |>
+  filter(year>2012)|>
+  group_by(movieId) |>
+  summarize(n=n(), title = first(title), year=first(year)) |>
+  slice_max(n, n=20) |>
+  arrange(desc(n())) |>
+  print (n=21)
+```
+
+And then we will create a matrix of user ratings for these movies
+
+```{r}
+movie_wide_tbl <- as_tibble(movielens) |>
+  filter(year>2012)|>
+  filter(movieId %in% top_tbl$movieId )|>
+  select(title,userId,rating) |>
+  pivot_wider(names_from=title, values_from=rating)
+
+movie_matrix <- movie_wide_tbl |>
+  select(-c(userId)) |>
+  data.matrix()
+
+rownames(movie_matrix) = movie_wide_tbl$userId
+dim(movie_matrix)
+rm(movielens)
+```
+
+We can find out how sparse is `movie_matrix` by doing the following
+
+```{r}
+sum(is.na(movie_matrix))
+```
+
+Notice our matrix is $21 \times 102$ so we are missing over 70 percent of our data.
+
+# Using SoftImpute
+
+1. 
+
+a. Do a histogram of the ratings from `movie_matrix`. What is the range and mean value of the ratings? **Hint: You can use `hist` and `mean`**
+
+```{r}
+hist(movie_matrix)
+mean(movie_matrix, na.rm=TRUE)
+```
+
+**Ans: \textcolor{blue}{The range is from 0-5 and mean is 3.9 approx.}**
+
+b. Which movies from `movie_matrix` have the highest and the lowest average ratings? **Hint: Try using `colMeans`**
+
+```{r}
+colMeans(movie_matrix, na.rm=T) |> 
+  sort() %>% 
+  head(1)
+
+```
+
+**Ans: \textcolor{blue}{Lowest: The Hunger Games: Catching Fire Ratings: 3.288462}**
+
+```{r}
+colMeans(movie_matrix, na.rm=T) |> 
+  sort(decreasing = T) %>% 
+  head(1)
+```
+
+**Ans: \textcolor{blue}{Highest: Interstellar Ratings: 4.151163}**
+
+c. Look at the documentation for `softImpute` and use it to complete the values for `movie_matrix`, creating a new matrix called `movie_complete_mat`. Make sure to use `rank=2` and `type="svd"`
+
+```{r}
+fits <- softImpute(movie_matrix,rank=2,trace=TRUE, type="svd")
+movie_complete_mat <- complete(movie_matrix, fits)
+```
+
+
+
+
+d. Which movies from `movie_complete_mat` have the highest and the lowest average ratings? Compare with 1.a
+
+```{r}
+colMeans(movie_complete_mat, na.rm=T) |> 
+  sort() %>% 
+  head(1)
+```
+
+**Ans: \textcolor{blue}{Lowest: Iron Man 3, Ratings: 2.03}**
+
+```{r}
+colMeans(movie_complete_mat, na.rm=T) %>% 
+  sort(decreasing = T) %>% 
+  head(1)
+```
+
+**Ans: \textcolor{blue}{Highest: Interstellar, Ratings: 3.81}**
+
+
+e. Do a biplot for a PCA analysis and interpret the first two loadings
+
+```{r}
+pca_complete <- prcomp(movie_complete_mat)
+(gg1 <- fviz_pca_biplot(pca_complete, axes=c(1,2))+
+    ggtitle("soft impute movie_complete_mat biplot"))
+```
+
+**Ans: \textcolor{blue}{The biplot shows that Dim1 separates users who prefer critically acclaimed dramas (e.g., The Imitation Game, Whiplash) from those favoring action/fantasy films (e.g., The Hobbit, Guardians of the Galaxy). Dim2 adds nuance, possibly distinguishing lighter animations (Big Hero 6) from more intense narratives (Mad Max).}**
+
+f. Do a histogram of the ratings from `movie_complete_mat`. What is the range and mean value of the ratings? Compare your results against 1a. Any issues that you see comparing those histograms? Any potential solutions that you can think of?
+
+```{r}
+hist(movie_complete_mat)
+mean(movie_matrix, na.rm=TRUE)
+```
+
+\textcolor{blue}{The imputed matrix has a wider range (from -4 to 6) compared to the original (1 to 5), though the mean remains similar (~3.9). The negative values are unrealistic for movie ratings and likely artifacts of SVD imputation. I am not sure about the potential fix.}
+
+
+For convenience we will define the function `get_pca_impute`, which will return the pca analysis after usign softImpute on a matrix, using a rank of k
+
+```{r}
+get_pca_impute <- function(matrix, kval) {
+  fits <- softImpute(matrix, rank=kval, type="svd")
+  matrix_complete <- complete(matrix, fits)
+  prcomp(matrix_complete)
+}
+```
+
+2. We can load the dataset from our class survey and convert it into a matrix as follows
+
+
+```{r}
+hdda_movies <- read_csv("~/Sds_333_S25/Class/Data/movies.csv")
+
+hdda_mat <- hdda_movies |>
+  select(-Name) |>
+  data.matrix()
+rownames(hdda_mat) <- hdda_movies$Name
+dim(hdda_mat)
+```
+
+And we can join our dataset to the movielens matrix as
+
+```{r}
+all_mat <- rbind(hdda_mat, movie_matrix)
+```
+
+a. Do a biplot of the PCA analysis after imputing values for the `all_mat` matrix using a rank=2. Are the results similar to 1e?
+
+```{r}
+fviz_pca_biplot(get_pca_impute(all_mat,2))+
+                  ggtitle("hdda_mat + movie_matrix biplot")
+```
+
+**Ans: \textcolor{blue}{The second biplot includes additional class survey data (hdda\_mat), leading to a denser and slightly more dispersed user space. While general movie preference directions remain similar to the first plot, the added points (class responses) introduce more variation and spread, especially along Dim1.}**
+
+b. In your previous plot, use the parameter `habillage` to color observations from the database and from the class differently. In the PCA plane where are most of the observations from this class? Where in the PCA plane are the responses from Prof. Davila (JD) and how do you interpret that?
+
+```{r}
+group <- c(rep("HDDA",nrow(hdda_mat)),rep("ML",nrow(movie_complete_mat)))
+fviz_pca_biplot(get_pca_impute(all_mat,2),
+                habillage=group)
+
+fviz_pca_biplot(get_pca_impute(all_mat,2),
+                habillage=group)+
+  xlim(-20,2) +
+  ylim(-3,15)
+```
+
+**Ans: \textcolor{blue}{Most class responses (HDDA, in red) cluster in the lower-left quadrant of the PCA plane, indicating similar movie preferences among students. Prof. Davila (JD) appears further left along Dim1, suggesting a stronger preference for movies like Interstellar and Gone Girl, which differ from the class average.}**
+
+
+## Take a break and talk about your group project with your group. Lines 130-136 don't need to be submitted for HW6 
+
+# What did you understand from the ESL readings? 
+
+# Are there other resources in the web that explain your topic? 
+
+# Can you explain a simple example of how your topic works? 
+
+# What example and library are you planning to use for your class?
+
+
+# Back to NMF
+
+3.  Let's consider the covid timeseries dataset:
+
+```{r}
+covid_tbl <- read_csv("~/Sds_333_S25/Class/Data/covid.cases.csv")
+```
+
+Our aim is to do and interpret an NMF analysis of the previous dataset
+
+a. Select an appropriate rank ($k$) for your NMF and justify your choice. You don't neeed to use a rank higher than 4.
+
+```{r}
+covid_mat <- data.matrix(covid_tbl[, -1])
+rownames(covid_mat) <- covid_tbl[[1]]
+estim <- nmf(covid_mat, 1:4, nrun=10, seed=123)
+plot(estim)
+```
+
+**Ans: \textcolor{blue}{Rank 3 appears optimal — it has the highest cophenetic and silhouette scores, suggesting stable and well-separated components. Additionally, it offers a good balance between low residuals and high explained variance without overfitting. Also covid kind of had 3 phases overall.}**
+
+
+b. What are the dimensions of the $W$ matrix? What type of plot would be useful for representing each of the  archetypes? Plot each of these archetypes and interpret in the context of the problem.
+
+
+```{r}
+nmf_fit <- nmf(covid_mat, rank = 3, nrun = 10, seed = 123)
+
+W <- basis(nmf_fit)
+
+W_df <- as_tibble(W, rownames = "State") |>
+  pivot_longer(-State, names_to = "Archetype", values_to = "Weight")
+
+ggplot(W_df, aes(x = reorder(State, Weight), y = Weight, fill = Archetype)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~Archetype, scales = "free_y") +
+  coord_flip() +
+  labs(title = "NMF Archetypes across States",
+       y = "Weight (Contribution to Archetype)",
+       x = "State")
+```
+
+
+**Ans: \textcolor{blue}{The W matrix has dimensions 51×3, representing how each state contributes to three distinct COVID-19 archetypes. From the plot, we see that states like FL, TX, and CA contribute heavily to V1, suggesting they followed a common early-to-mid wave pattern. V2 includes states like NY, NJ, and DC, possibly reflecting an early, sharp outbreak. V3 is dominated by ND, SD, and NE, suggesting a later or different spread pattern, perhaps due to regional policies or population density.}**
+
+c. Use a heatmap to visualize the exposure matrix $H$ and clearly label each state. Select a sensible amount of clusters and interpret them in the context of the problem.
+
+```{r}
+H <- coef(nmf_fit)
+
+pheatmap(t(H),
+         cutree_rows = 2,
+         cluster_cols = FALSE,
+         clustering_method = "average",
+         clustering_distance_rows = "correlation",
+         main = "Heatmap of Archetype Exposure Over Time")
+```
+
+**Ans: \textcolor{blue}{The heatmap of the H matrix reveals how the three archetypes varied over time, with rows representing days and colors indicating exposure levels. Two main clusters of days are evident: one early period with low or diffuse archetype activity, and a later period dominated by a single archetype with high intensity (red). This suggests distinct COVID-19 waves, with clear transitions in dominant outbreak dynamics over time. I am not sure how to incorporate the state names in this plot!}**
+
+# Using NMF for matrix completion
+
+Let's load  `USArrests` dataset in the log-scale
+
+```{r}
+arrests_mat <- data.matrix(USArrests)
+
+arrests_mat <- log10(1+arrests_mat)
+```
+
+We are interested in creating an imputation strategy similar `softImpute`, but instead of using PCA we would like to use NMF. In order to do test let's create `arrests_na` by omiting 20 entries at random in our dataset:
+
+```{r}
+nomit <- 20
+set.seed(32154)
+index_state <- sample(seq(50), nomit)
+index_var <- sample(1:4, nomit, replace=TRUE)
+arrests_na <- arrests_mat
+index_na <- cbind(index_state,index_var)
+arrests_na[index_na] <- NA
+```
+
+And just like in `softImpute` our first approximation will be using the means of the variables
+
+```{r}
+arrests_impute1 <- arrests_na
+var_means <- colMeans(arrests_impute1, na.rm=TRUE)
+arrests_impute1[index_na] <- var_means[index_var]
+```
+
+The following exercises will guide you on how to implement our imputation strategy using NMF
+
+4. Create a function `get_nmf_impute`, that receives a matrix, a set of positions, and a rank. The function will use the NMF approximation (W times H) of a particular matrix to impute the values in the set of positions. Use `get_nmf_impute` on `arrests_impute1` and call the result `arrests_impute2`
+
+```{r}
+
+get_nmf_impute <- function(mat, missing_idx, rank_k) {
+  
+  nmf_fit <- nmf(mat, rank = rank_k, seed = 123)
+  
+  W <- basis(nmf_fit)
+  H <- coef(nmf_fit)
+  mat_hat <- W %*% H
+  
+  mat_imputed <- mat
+  for (i in seq_len(nrow(missing_idx))) {
+    row <- missing_idx[i, 1]
+    col <- missing_idx[i, 2]
+    mat_imputed[row, col] <- mat_hat[row, col]
+  }
+  
+  return(mat_imputed)
+}
+
+```
+
+```{r}
+arrests_impute2 <- get_nmf_impute(arrests_impute1, index_na, rank_k = 2)
+```
+
+
+
+5. a. Create a function `dist_na` that receives two matrices `mat1` and `mat2` and a set of positions `pos`, and calculates the euclidean distance between `mat1` and `mat2` to the set of positions `pos`. Use this function to calculate the distance between `arrests_impute1` and `arrests_mat` at the indices with missing information (`index_na`)
+
+```{r}
+dist_na <- function(mat1, mat2, pos) {
+  vals1 <- mat1[pos]
+  vals2 <- mat2[pos]
+  sqrt(sum((vals1 - vals2)^2))
+}
+```
+
+
+```{r}
+dist_1 <- dist_na(arrests_impute1, arrests_mat, index_na)
+dist_1
+```
+
+
+b. Use `dist_na` to calculate the distance from `arrests_impute2` to `arrests_mat` in the missing values
+
+```{r}
+dist_na(arrests_impute2, arrests_mat, index_na)
+```
+
+
+c. Apply iteratively 4 times `get_nmf_impute` to `arrests_impute1` and calculate the distance against `arrests_mat` on the missing indices. Does it seems like the process is converging to a particular value? How would you decide when to stop the process?
+
+```{r}
+current_impute <- arrests_impute1
+distances <- numeric(4)
+
+for (i in 1:4) {
+  current_impute <- get_nmf_impute(current_impute, index_na, rank_k = 2)
+  distances[i] <- dist_na(current_impute, arrests_mat, index_na)
+}
+
+distances
+```
+
+**Ans: \textcolor{blue}{The Euclidean distance steadily decreases with each iteration — from 0.58 to 0.50 — indicating that the NMF-based imputation is converging. While the rate of improvement slows down, the decreasing trend suggests that further iterations may still provide marginal gains. A sensible stopping point would be when the distance change between steps is very small (e.g., less than $10^4$ ), showing that the process has stabilized.}**

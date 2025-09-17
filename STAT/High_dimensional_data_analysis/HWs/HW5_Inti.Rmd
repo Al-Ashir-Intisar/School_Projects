@@ -1,0 +1,320 @@
+---
+title: "Principal Component Analysis"
+author: "Jaime Davila"
+date: "3/14/25"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,cache = TRUE)
+library(tidyverse)
+library(factoextra)
+```
+
+# Happy Pi Day!
+
+## PCA on the Palmer Penguins
+
+Let's finish what we started last class with the Palmer Penguins dataset
+
+
+```{r}
+library(modeldata)
+penguins_tbl <-  penguins |>
+  drop_na()
+
+penguins_mat <- penguins_tbl |>
+  select(bill_length_mm, bill_depth_mm, flipper_length_mm, body_mass_g) |>
+  as.matrix()
+```
+
+And let's run the PCA analysis on the normalized data
+
+```{r}
+penguins_pca <- prcomp(penguins_mat, scale=TRUE)
+
+fviz_pca_biplot(penguins_pca)
+```
+
+One possible way to interpret the loadings from the previous plot is:
+
+* PC1: Has high positive contribution of `flipper_length` and `body_mass`, and `bill_length`. It has negative contribution of `bill_depth`
+
+* PC2: It has a negative contribution of `bill_depth` and `bill_length`
+
+In other words penguins with high values of PC1 tend to have high values of `flipper_length` and `body_mass`, while negative values of PC2 are associated with high values of `bill_depth` and `bill_length`
+
+Notice that we can add information on top of our plot corresponding to some ground truth by using the parameter `habillage` for example, let's add color according to the species
+
+```{r}
+(penguins_biplot <- 
+  fviz_pca_biplot(penguins_pca, habillage=penguins_tbl$species))
+```
+
+It seems the first two components are doing a good job at separating the species. For example, Gentoo penguins have a high flipper_length and body_mass, while Adelie has low values of flipper lenght/body mass and Chinstrap is somewhat intermediate. Also notice that Chinstrap penguins tend to have higher values of bill_length and depth when compared to Adelie.
+
+1.
+
+a. Do a biplot of the previous PCA analysis and add color according to sex. Do the first two principal components do a good job at separating across sexes? How do you interpret the results?
+
+
+```{r}
+fviz_pca_biplot(penguins_pca, habillage=penguins_tbl$sex)
+```
+
+**Ans: Looks like the sexes are pretty separated based on the value of PC2 on the graph. Lower value of PC2 or in other words higher bill depth and bill length are associated with male penguins**
+
+
+b. Do a biplot using the scores from PC3 and PC4, by using the parameter `axes` in `fviz_pca_biplot` and use color to represent the species. How do you interpret the results?
+
+```{r}
+ 
+fviz_pca_biplot(penguins_pca, axes = c(3,4), habillage=penguins_tbl$species)
+
+```
+
+
+**Ans: Based on the biplot we can see that the species are not well separated by PC1 and PC2. But there is slight trend such as most Chinstrap penguins have lower PC3 value where as Adelie penguins have higher PC3 values. The Gentoo penguins have PC3 values somewhere in the middle.**
+
+
+## Visualizing using k-means
+
+Remember k-means? Let's start by running kmeans using 3 clusters on our scaled penguins matrix
+
+```{r}
+penguin_kmean <- kmeans(scale(penguins_mat), 3)
+```
+
+And then we can use `fviz_cluster` which behind the scenes computes the first two principal components of our data and visualizes the clusters in two dimensional space:
+
+```{r}
+(kmeans_fig <- fviz_cluster(penguin_kmean,data=penguins_mat))
+```
+
+Seems kmeans did an OK job, right? Let's compare the plots side by side with our biplot, and notice that cluster 1 corresponds to Adelie, cluster 2 corresponds to Chinstrap, cluster 3 to Adelie
+
+```{r}
+library(gridExtra)
+
+grid.arrange(penguins_biplot,kmeans_fig, nrow=1)
+```
+
+Notice than in the previous analysis we did kmeans on the original space, but **visualize** using the principal components
+
+
+## Visualizing PCA using heatmaps/clustering
+
+Let's notice that another way that we can display our information is by leveraging heatmaps using the scores. Furthermore we know that about 88% of the variation is captured by the first two components of the scores, so truncating to only those two components gives us a "good representation" of the original observations.
+
+So let's do a heatmap using only the first two components of their scores and divide our data into three clusters.
+
+```{r}
+penguin_scores <- penguins_pca$x[,1:2]
+# Notice that we need to provide a rowname for each row of our matrix
+# otherwise the pheatmap function might give an error
+rownames(penguin_scores) <- paste0("penguin_",seq(nrow(penguin_scores)))
+
+library(pheatmap)
+pheatmap(penguin_scores, cutree_rows = 3,
+         cluster_cols = FALSE, show_rownames = FALSE)
+```
+
+Seems we have 3 clusters:
+
+* The first one has low values of PC1, and positive values of PC2
+* The second has positive values of PC1, and negative values of PC2
+* The third one has high values of PC1, and high values of PC2 (for the most part)
+
+We are interested in knowing if these three clusters roughly correspond to our three species. To do that we will create an **annotation table** corresponding to the species. Notice that for the table to work with `pheatmap` we **need** to have their row names coincide with the rownames from penguin_scores:
+
+```{r}
+species_annot <- select(penguins_tbl, species) |> as.data.frame()
+rownames(species_annot) <- rownames(penguin_scores)
+
+pheatmap(penguin_scores, cutree_rows = 3,
+         annotation_row = species_annot,
+         cluster_cols = FALSE, show_rownames = FALSE)
+```
+
+The clustering is not perfect, but let's notice that approximately each cluster corresponds to a different species.
+
+# PCA on gene expression dataset
+
+We will be analyzing our `tissue_gene_expression` dataset from the library `dslabs`. Let's start by loading it and making `gene_mat` the matrix of the gene expression
+
+```{r}
+library(dslabs)
+data(tissue_gene_expression)
+gene_mat <- tissue_gene_expression$x
+```
+
+And let's use `prcomp` to compute the Principal Component Analysis:
+
+```{r}
+gene_pca <- prcomp(gene_mat)
+```
+
+Let's notice that in this example we are not performing scaling since the values of the expression of each gene are in the same scale.
+
+
+2. In this exercise we will be using different graphs from `factoextra` to understand our high dimensional dataset.
+
+a. How many components (dimensions) do you need to explain 70% of the variation from your dataset? Generate the scree plot using `fviz_screeplot`. How do you interpret this plot?
+
+```{r}
+fviz_screeplot(gene_pca, addlabels = TRUE, ylim = c(0, 100))+
+  labs(title = "Gene expression pca scree plot")
+
+```
+
+**Ans: Approximately we need only the first 6 components to explain about 70% of the variation in our dataset. As we can see in the plot the first 10 components explain about 80% of the variation in the dataset. As we increase the number of components the additional increase in variation explanation power is significantly less.**
+
+
+b. Use the function `fviz_pca_ind` to visualize the first two components of the scores. Make sure to add colors corresponding to the different tissues using the parameter `habillage` (remember the tissue of origin are stored in `tissue_gene_expresion$y`) and add ellipsis for ease of visualization. Which tissues are clearly separated from each other?
+
+```{r}
+fviz_pca_ind(gene_pca, habillage = tissue_gene_expression$y, addEllipses = TRUE)
+```
+
+**Ans: There is mainly three separated clusters base on PC1 and PC2 liver, cerebellum+hippocampus, and kidney+colon+endometrium+placenta. The most well separated tissues would be liver, cerebellum, and hippocampus.**
+
+
+c. Use `fviz_pca_var` to visualize the contributions of each of the variables on the first two components. Try the function `fviz_contrib` as well. Which are the top 3 genes that contribute to the first two principal components? How do you intepret the first two principal components using these 3 genes? 
+
+```{r}
+
+fviz_pca_var(gene_pca, axes = c(1,2))
+
+
+fviz_contrib(gene_pca, choice = "var", axes = c(1,2), top = 10)
+
+```
+
+**Ans: GPM6B has the highest contribution 8.2% (PC1: negative; PC1: negative), then HAMP 3.8% (PC1: positive; PC2: negative) and then COL1A2 3.1% (PC1: positive; PC2: positive). Therefore, PC1 is high when GPM6B is low and HAMP & COL1A2 are high where as PC2 is high when GPM6B & Hamp are low and COL1A2 is high.**
+
+
+d. For the top-3 genes identified in c, google their names in genecards and try to establish if they correspond to a particular tissue type. Use this information to interpret your first two principal components. Is this interpretation consistent with your plot in exercise 2 b?
+
+**Ans: GPM6B: This gene encodes a membrane glycoprotein that belongs to the proteolipid protein family. Proteolipid protein family members are expressed in most brain regions and are thought to be involved in cellular housekeeping functions such as membrane trafficking and cell-to-cell communication. HAMP: Liver-produced hormone that constitutes the main circulating regulator of iron absorption and distribution across tissues. COL1A2: This gene encodes the pro-alpha2 chain of type I collagen whose triple helix comprises two alpha1 chains and one alpha2 chain. Type I is a fibril-forming collagen found in most connective tissues and is abundant in bone, cornea, dermis and tendon. Therefore higher absolute value of PC1 correspond to higher GPM6B expression which is produced in brain. And higher absolute value of PC2 correspond to higher expression of HAMP which is produced in the liver. This is consistent with my observation at 2b.**
+
+
+3. The first two components of the PCA analysis seemed to do a good job at separating a handful of different tissues, however we wonder if by looking at components at the principal 2 and 3 we would get a better separation of the remaining tissues.  Use the parameter `axes` inside `fviz_pca_ind` and `fviz_pca_par` to visualize using these components. What do you observe? How can you interpret those results?
+
+```{r}
+fviz_pca_ind(gene_pca, axes = c(2,3), habillage = tissue_gene_expression$y, addEllipses = TRUE)
+
+fviz_pca_var(gene_pca, axes = c(2,3))
+
+
+fviz_contrib(gene_pca, choice = "var", axes = c(2,3), top = 10)
+```
+
+
+**Ans: We can see that theb expression of SPP1 gene contributes the most for PC3. The higher the expression of SPP1 the higher the value for PC3. As we can see this PC2 and PC3 plot seperates the liver and colon tissue pretty well because PC2 seperates mostly based on expression of HAMP which is mostly produced in liver and PC3 seperates based on the expression of SPP1 which is least present in colon.**
+
+4. Consider only the first 6 components of your scores and do a heatmap, visualizing the hierarchical clustering using 7 clusters. Add an annotation column to your heatamp for each of your tissue types. Which clusters correspond roughly to a single tissue type?
+
+
+```{r}
+gene_scores <- gene_pca$x[,1:6]
+gene_annot <- tissue_gene_expression$y %>% 
+  as.data.frame()
+rownames(gene_annot) <- rownames(gene_scores)
+
+pheatmap(gene_scores, cutree_rows = 7,
+         annotation_row = gene_annot,
+         cluster_cols = FALSE, show_rownames = FALSE)
+```
+
+**Ans: The placenta, kidney, hippocampus, and liver are roughly separated into single cluster.**
+
+
+5. a. Do a k-means on the gene matrix (do not normalize), using k=7. Visualize your clusters using `fviz_cluster` and the first two principal components. Do brain tissues cluster together? To which cluster corresponds the majority of liver tissues?
+
+```{r}
+set.seed(123)
+gene_kmeans7 <- kmeans(gene_mat, centers = 7)
+
+fviz_cluster(gene_kmeans7, data = gene_mat, axes = c(1,2), geom = "point")
+
+print(gene_kmeans7$cluster[gene_kmeans7$cluster == 2])
+print(gene_kmeans7$cluster[gene_kmeans7$cluster == 6 | gene_kmeans7$cluster == 3])
+
+```
+
+**Ans: Yes as we can see the cluster 3 and 6 are overlapping band they are mainly brain tissues hippocampus and cerebellum. Cluster 2 corresonds to majority of liver tissues.**
+
+
+b. Repeat your visualization but this time use the second two principal components (make sure to use the parameter `axes`). Which tissue corresponds to a distinct cluster with high values in the third principal component?
+
+**\textcolor{blue}{Assuming second two implies PC3 and PC4}**
+
+```{r}
+fviz_cluster(gene_kmeans7, data = gene_mat, axes = c(3,4), geom = "point")
+
+print(gene_kmeans7$cluster[gene_kmeans7$cluster == 5])
+
+```
+
+**Ans: High PC3 vlaue corresponds mostly to colon, endometrium and placenta which us cluster 5 well seperated in the plot.**
+
+
+6. Using this .Rmd create a one page summary of the concepts that we covered in the last 3 weeks of class (3_linear_algebra and 4_pca ). Just make sure your summary has full sentences as well as some R code. Be mindful of the one page limit, and use default font sizes, margins, and spacing.
+
+
+\newpage 
+
+
+### **1. Linear Algebra Concepts**
+Some key topics covered:
+
+- **Matrix Operations**: Addition, multiplication, and inversion.
+- **Linear Transformations**: Mapping data to a new coordinate system.
+- **Singular Value Decomposition (SVD)**: Factorizing a matrix into three matrices: 
+  \[ A = U \Sigma V^T \]
+  This is useful for dimensionality reduction.
+- **Eigenvalues and Eigenvectors**: Essential for understanding variance and feature extraction.
+
+**Example R Code:**
+```{r}
+A <- matrix(c(2, 4, 3, 1, 5, 7), nrow = 2)
+svd_A <- svd(A)
+print(svd_A)
+
+```
+
+### **2. Principal Component Analysis (PCA)**
+PCA is a dimensionality reduction technique used to extract the most important features from data.
+
+- **Goal**: Transform data into a new basis where variance is maximized.
+- **Steps**:
+  1. Standardize the dataset.
+  2. Compute the covariance matrix.
+  3. Find eigenvalues and eigenvectors.
+  4. Select top principal components.
+  5. Project the data onto these components.
+
+**Example R Code:**
+```{r}
+
+gene_pca <- prcomp(gene_mat, center = TRUE, scale. = TRUE)
+```
+
+
+### **3. Clustering with PCA**
+PCA can be used as a preprocessing step before clustering to reduce the dimentionalaty of the dataset.
+
+**Example R Code:**
+
+```{r}
+gene_kmeans7 <- kmeans(gene_mat, 7)
+
+```
+
+
+

@@ -1,0 +1,391 @@
+---
+title: "Using k-means/medoids clustering"
+author: "Jaime Davila"
+date: "2/21/25"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,cache = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+library(tidyverse)
+library(dslabs)
+library(cluster)
+library(factoextra)
+```
+
+0. Describe in your own words what a medoid is? What is the difference between a centroid and a medoid?
+
+**Ans: The centroid is a calculated average/mean point/observation across all variables in tne cluster. Whereas mediod is an actual data point selected from the existing cluster based on minimum total distance to other points. Centroid is sensitive to outliers whereas medoid is more robust.**
+
+# Cats!
+
+The data for the example of today will consist of images from cats:
+
+```{r}
+cats_tbl <- read_csv("~/Sds_333_S25/Class/Data/cats2.csv")
+dim(cats_tbl)
+```
+
+Notice how our dataset has 99 rows (cats) and 4097 columns. The first column corresponds to the label for each cat, followed by 4096 (64*64) greyscale values which represent the image of a cat.
+
+We can convert the tibble into a matrix by doing the following:
+
+```{r}
+image_matrix <- cats_tbl %>%
+  select (-c(rowid)) %>%
+  as.matrix()
+rownames(image_matrix) <- cats_tbl$rowid
+
+dim(image_matrix)
+```
+
+Finally let's create a quick helper function that will allow us to view the image of each of these adorable felines :)
+
+```{r}
+plotImage <- function(dat,size=64){
+  imag <- matrix(as.numeric(dat),nrow=size,byrow=T) 
+  image(imag,col=grey.colors(256)) 
+}
+```
+
+Notice that the function works by converting a row into a 64*64 matrix and then we use the function `image`. Let's check a couple of cats:
+
+```{r}
+plotImage(image_matrix[1,])
+
+plotImage(image_matrix[50,])
+```
+
+
+
+1)
+
+a. Use k-means with 2 clusters. Plot a couple of cats from every cluster. What pattern do cats from each cluster follow?
+
+```{r}
+set.seed(2045)
+```
+
+
+```{r}
+cat_clusters2 <- kmeans(image_matrix, 2, iter.max=50, nstart=25)
+```
+
+```{r}
+# cats in group 1
+cat_clusters2$cluster[cat_clusters2$cluster == 1]
+```
+
+
+```{r}
+plotImage(image_matrix[2,])
+```
+
+```{r}
+plotImage(image_matrix[31,])
+```
+
+
+```{r}
+plotImage(image_matrix[94,])
+```
+
+
+
+```{r}
+# cats in group 2
+cat_clusters2$cluster[cat_clusters2$cluster == 2]
+```
+
+
+```{r}
+plotImage(image_matrix[1,])
+```
+
+
+```{r}
+plotImage(image_matrix[55,])
+```
+
+
+```{r}
+plotImage(image_matrix[99,])
+```
+
+```{r}
+# Compute the sum of pixel values for each center
+center1_sum <- sum(cat_clusters2$centers[1,])
+center2_sum <- sum(cat_clusters2$centers[2,])
+
+result_table <- data.frame(
+  Center = c("Center 1", "Center 2"),
+  Sum_Pixel_Value = c(center1_sum, center2_sum)
+)
+
+print(result_table)
+```
+
+
+**Ans: It seems like the group 1 cats are mostly black cats and group 2 cats are white cats. So the pattern here is how darkl or bright the image is overall. The total pixel value of center 1 is significantly less thant total pixel value of center 2 which confirms the observation.**
+
+b. Plot the images corresponding to the centroids for each of the two clusters. Is this consistent with the pattern observed in 1 a)? 
+
+```{r}
+# Centroid of cluster 1
+plotImage(cat_clusters2$centers[1,])
+```
+
+
+```{r}
+# Centroid of cluster 2
+plotImage(cat_clusters2$centers[2,])
+```
+
+
+**Ans: The centroid image of the cluster 1 is a vague image of a darker color cat as opposed to cluster 2 that is a vague image of a brighter color cat. This is consistent with the observation in a.**
+
+2. 
+
+a. Experiment with the WSS (elbow) and silhouette methods for finding the optimal number of clusters. Plot the images corresponding to the centroids for a choice of k different than 2 and use to describe its corresponding cluster.
+
+```{r}
+# Cluster number vs WSS
+fviz_nbclust(image_matrix, kmeans, method="wss")
+```
+
+**Ans: There seems to be a slight elbow at cluster number 4.**
+
+```{r}
+fviz_nbclust(image_matrix, kmeans, method="silhouette")
+```
+
+**Ans: The optimal number of clusters based on the average silhouette width is 2 as we can see from the plot above. I believe the optimal cluster number in this dataset is 2. But I will choose 3 which is in between what we got from WSS (4) and silhouette methods (2).**
+
+```{r}
+set.seed(2045)
+cat_clusters3 <- kmeans(image_matrix, 3, iter.max=50, nstart=25)
+```
+
+```{r}
+# Centroid image of cluster 1
+plotImage(cat_clusters3$centers[1,])
+
+```
+
+```{r}
+# Centroid image of cluster 2
+plotImage(cat_clusters3$centers[2,])
+```
+
+
+```{r}
+# Centroid image of cluster 3
+plotImage(cat_clusters3$centers[3,])
+```
+
+
+**Ans: The centroid image of cluster 1 is of a completely black cat and for cluster 2 it is a black and white cat (or white car black background), and for cluster 3 it is a completely white cat with relatively whiter background.**
+
+b. Calculate the silhouette statistic for each of your clusters using `fviz_silhouette` and use it to argue for whether the resulting clusters are distinct.
+
+```{r}
+set.seed(2045)
+cat_cluster_silhouette <- kmeans(image_matrix, 3, iter.max = 50, nstart = 25)
+
+cat_silhouette <- silhouette(cat_cluster_silhouette$cluster, dist(image_matrix))
+
+fviz_silhouette(cat_silhouette)
+```
+
+
+**Ans: A low average silhouette score (0.14) suggests weakly separated clusters. Ideally, silhouette scores should be above 0.5 for clear clustering. Also the pattern in the silhouette scores of individual images shows a continioum where there is no cluster of images that are equally close to the centroid. Rather they are just spread out and some images are even wrongly labeled since their silhouette score is negative in cluster 1 and 2. Even though the centroids of each cluster shows different type of cat image the actual images are more spread out in terms of their pixel values without significantly seperated clusters. So the clusters are not necessarily distinct or well apart from each other.**
+
+3. The function `pam` implements the `k-medoids`  method using a syntax similar to the `kmeans` function. You can look at the documentation of `pam` using `?pam`. 
+
+
+a. Use the function `fviz_nbclust` to determine a good value of `k` using the silhouette  method for the k-medoids algorithm on the cats dataset. 
+
+```{r}
+fviz_nbclust(image_matrix, pam, method="silhouette")
+```
+
+**Ans: The best value for k based on silhouette method for k-medoids algorithm is 2. Because the highest average silhouette width is for cluster number 2.** 
+
+b. Plot the images corresponding to the medoids and use them to describe the clusters from 3a
+
+```{r}
+cat_cluster2_medoids <- pam(image_matrix, 2)
+
+```
+
+```{r}
+# Medoid image of cluster 1
+plotImage(cat_cluster2_medoids$medoids[1,])
+```
+
+```{r}
+# Medoid image of cluster 2
+plotImage(cat_cluster2_medoids$medoids[2,])
+```
+
+**Ans: The medoid image of the cluster 1 seem to be of a cat of brighter color along with brighter background as well. On the other hand the medoid image of cluster 2 is of a cat with mostly darker color face and ears. I believe what there two cluster represent is in general darker color cats and brighter color cats. Specially distinguishes between image of cat with darker face and brighter color face.**
+
+4. a. What happens to the images when you normalize each of the columns of `image_matrix` using `scale()`?
+
+```{r}
+scaled_image_matrix <- scale(image_matrix)
+```
+
+```{r}
+par(mfrow = c(1,2))
+plotImage(image_matrix[1,])
+plotImage(scaled_image_matrix[1,])
+par(mfrow = c(1,1))
+
+```
+
+```{r}
+par(mfrow = c(1,2))
+plotImage(image_matrix[2,])
+plotImage(scaled_image_matrix[2,])
+par(mfrow = c(1,1))
+```
+
+**Ans: When we normalize/scale the image_matrix what happens is that every specific pixel/column across all images/rows gets normalized and now has standard deviation of 1. So when we calculate the distance/WSS/silhouette no specific pixel of the image weighs more/less than the other pixels. The way it affects the plotted image is that the relatively darker pixels gets dimmer and relative dimmer pixels get darker. In essence there is less contrast.**
+
+b. What happens when you use `kmeans` with 2 clusters on the normalized
+images? Plot the cluster center and compare/contrast with the images in 1b
+
+```{r}
+set.seed(2045)
+cat_scaled_cluster2 <- kmeans(scaled_image_matrix, 2, iter.max = 50, nstart = 25)
+
+```
+
+
+```{r}
+# Centroid of brighter cat cluster with vs without scaling
+par(mfrow=c(1,2))
+plotImage(cat_clusters2$centers[2,])
+plotImage(cat_scaled_cluster2$centers[1,])
+par(mfrow=c(1,1))
+```
+
+
+```{r}
+# Centroid of darker cat cluster with vs without scaling
+par(mfrow=c(1,2))
+plotImage(cat_clusters2$centers[1,])
+plotImage(cat_scaled_cluster2$centers[2,])
+par(mfrow=c(1,1))
+```
+
+**Ans: The right images (normalized) appear more blurred than the left images (original scale 1b). This suggests that normalization causes the clustering algorithm to emphasize relative differences rather than absolute pixel intensity.**
+
+# K-Medoids in tissue gene expression
+
+Let's load our tissue gene expression dataset again
+
+```{r}
+data(tissue_gene_expression)
+tissue_matrix <- tissue_gene_expression$x
+table(tissue_gene_expression$y)
+set.seed(2202024)
+select_row <- sample(nrow(tissue_matrix),50)
+tissue_sub_matrix <- tissue_gene_expression$x[select_row,]
+dim(tissue_sub_matrix)
+
+```
+
+
+In the following exercises we will be exploring the use of K-medoids in this dataset
+
+5. 
+
+a. Use the WSS elbow method to determine an appropriate number of clusters
+
+```{r}
+set.seed(2045)
+fviz_nbclust(tissue_sub_matrix, pam, method="wss")
+```
+
+**Ans: The first sort of elbow appears at clustering with 5 clusters. So the appropriate cluster number would be 5 based on the wss method for k-medoids algorithm.** 
+
+
+b. Run k-medoids using the pam method and a `k=7` and determine which samples go in each cluster. Based on the labels of the tissues what tissue does each cluster represent? Are there clusters with very different tissue types in it?
+
+```{r}
+set.seed(1234)
+gene_cluster7 <- pam(tissue_sub_matrix, 7)
+```
+
+
+```{r}
+fviz_cluster(gene_cluster7, data = tissue_sub_matrix, ellipse.type = "convex")
+```
+
+
+```{r}
+cluster_table <- data.frame(
+  Sample = names(gene_cluster7$clustering),
+  Cluster = gene_cluster7$clustering
+)
+
+cluster_table <- cluster_table[order(cluster_table$Cluster), ]
+
+print(cluster_table)
+
+```
+
+**Ans: Cluster 1: Kidney and Endometrium; Cluster 2: Cerebellum; Cluster 3: Kidney; Cluster 4: Hippocampus and Cerebellum; Cluster 5: Colon; Cluster 6: Liver and Kidney; Cluster 7: Placenta. Clusters 1,4, and 6 have more than 1 tissue type represented. It is visualized in the table and graphs above.**
+
+c. Calculate and visualize the silhouette metric for all the observations. Which cluster has the lowest silhouette? Is this consistent with what you found in 5 b?
+
+```{r}
+gene_silhouette <- silhouette(gene_cluster7$clustering, dist(tissue_sub_matrix))
+
+fviz_silhouette(gene_silhouette)
+```
+
+**Ans: From the graph above we can see that cluster 1 has the lowest silhouette. In b we did see that cluster 1 has more than one tissue type represented in it.**
+
+6. a. Which observations are the medoids of the clustering from 5b?
+
+```{r}
+rownames(gene_cluster7$medoids)
+```
+
+
+**Ans: Cluster 1 medoid is Kidney_34, cluster 2 medoid is cerebellum_17, cluster 3 medoid is kedney_3, cluster 4 medoid is hippocampus_29, cluster 5 mediod is colon_28, cluster 6 medoid is liver_2, and cluster 7 medoid is placenta_2.**
+
+b. Calculate the difference between the cluster corresponding to a majority of hippocampus tissues and other homogeneous non-brain cluster? What is the highest expressed gene (column) of this difference? Google the "gene name" + genecards and see if it makes sense from the biology perspective
+
+
+```{r}
+library(pheatmap)
+medoid_ref <- gene_cluster7$medoids[4, ]
+
+medoid_diff <- abs(sweep(gene_cluster7$medoids[-4, ], 2, medoid_ref, "-"))
+
+top_features <- order(apply(medoid_diff, 2, max), decreasing = TRUE)[1:10]
+
+medoid_diff_top10 <- medoid_diff[, top_features]
+
+pheatmap(medoid_diff_top10, 
+         cluster_rows = FALSE, 
+         cluster_cols = FALSE,  
+         main = "Differently expressed genes compared to Hippocampus.")
+
+
+```
+
+
+**Ans: The most differently expressed gene is GPM6B. GeneCrad info: This gene encodes a membrane glycoprotein that belongs to the proteolipid protein family. Proteolipid protein family members are expressed in most brain regions and are thought to be involved in cellular housekeeping functions such as membrane trafficking and cell-to-cell communication. Base on this information it makes sense that this gene is differently expressed in hippocampus compared to other homogeneous non brain clusters i.e. placenta, liver, colon, and kidney.** 

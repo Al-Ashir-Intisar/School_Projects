@@ -1,0 +1,82 @@
+---
+title: "Miltidimensional Scaling"
+author: "Al Ashir Intisar"
+date: "2025-04-23"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+
+
+
+```{r}
+# small 3x3 distance matrix 
+D <- matrix(c(0, 1, sqrt(2),
+              1, 0, 1,
+              sqrt(2), 1, 0), 
+            nrow = 3, byrow = TRUE)
+
+
+```
+
+
+## Compute the Gram matrix (inner product matrix) using double-centering
+
+
+```{r}
+# Squared distance matrix
+D2 <- D^2
+
+# Centering matrix J
+n <- nrow(D2)
+I <- diag(n)
+One <- matrix(1, n, n)
+J <- I - One / n
+
+# Compute Gram matrix B = -0.5 * J D^2 J
+B <- -0.5 * J %*% D2 %*% J
+
+```
+
+
+## Perform eigen decomposition on the Gram matrix
+
+
+```{r}
+eig <- eigen(B)
+values <- eig$values
+vectors <- eig$vectors
+```
+
+
+## Construct the low-dimensional embedding
+
+```{r}
+# Keep only positive eigenvalues
+positive <- which(values > 0)
+L <- diag(sqrt(values[positive]))
+V <- vectors[, positive]
+
+# Final coordinates
+X <- V %*% L
+```
+
+
+## Plot the embedding
+
+```{r}
+plot(X, pch = 19, col = "blue", main = "MDS Embedding", asp = 1)
+text(X, labels = 1:nrow(X), pos = 3)
+
+```
+
+# You can also reduce to 1D by setting
+
+```{r}
+X1D <- V[, 1] * sqrt(values[1])
+plot(X1D, rep(0, length(X1D)), pch = 19)
+
+```
+

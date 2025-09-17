@@ -1,0 +1,432 @@
+---
+title: "HDDA first challenge"
+author: "Group4: Yaseen, Zach, Inti"
+date: "2/24/2025"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+library(tidyverse)
+```
+
+
+# The cats dataset
+
+**\textcolor{blue}{Below we load in the cats images dataset and convert it into a matrix of images (rows).}**
+
+```{r}
+cats_tbl <- read_csv("~/Sds_333_S25/Class/Data/cats2.csv")
+
+image_matrix <- cats_tbl %>%
+dplyr::select (-c(rowid)) %>%
+  as.matrix()
+rownames(image_matrix) <- cats_tbl$rowid
+dim(image_matrix)
+```
+
+## Visualization functions
+
+**\textcolor{blue}{Below we define a function called plotImage() to plot the row of pixel values into a complete image.}**
+
+```{r}
+plotImage <- function(dat,size=64){
+  imag <- matrix(as.numeric(dat),nrow=size, byrow = T) 
+  image(imag,col=grey.colors(256)) 
+}
+
+plotImage(image_matrix[43,])
+plotImage(image_matrix[2,])
+```
+
+
+
+**\textcolor{blue}{Below we define a function called row\_to\_img() to convert the row of pixel values for individual image in image\_matrix to a square matrix for later.}**
+
+```{r}
+# row values to square matrix
+row_to_img <- function(image,size = 64) {
+  imag <- matrix(as.numeric(image),nrow=size, byrow = T) %>% 
+    t()
+  
+}
+
+image_matrix.1 <- row_to_img(image_matrix[1,])
+image(t(image_matrix.1),col=grey.colors(256))
+```
+
+**\textcolor{blue}{The plotImage() function takes in the row of pixel values from the image\_matrix for an individual cat image and the n for the n by n dimensions of the image and plots it on gray scale. The plotImageTxt() function also takes in the row of pixel values for individual image in the image\_matrix and the dimension n of the square image and then converts the row into a n by n matrix then displays pixel values of pixel in every 8th row and column by transposing it and reversing the row order for proper orientation. The function row\_to\_img() just converts the row of pixel values for individual image in image\_matrix into a n by n matrix.}**
+
+## Vector quantization
+
+Describe in your own words how vector quantization and the steps that you will be using to implement this method. Each of your steps will be implemented as a separate function in your final report.
+
+**\textcolor{blue}{Ans: Vector Quantization is where you group similar chunks of data and represent it as a single group in order to save storage space. It is done through several steps, first by determining how many clusters we want (less clusters will result in a smaller file size). Then we organize the image object into a list with 4 columns where each row contains a 2 by 2 pixel block. From there, with our desired cluster amount, we run a kmeans clustering on our image list, creating k number centroids for our 4 columns. Then instead of storing individual pixel values for each 2 by 2 block we just store a number corresponding which cluster it belongs to which will only range upto the number of clusters used. By referencing to the centroid of each cluster we can recreate the image with varying levels of compression that depends on the value of k.}**
+
+**\textcolor{blue}{The reason this is efficient at reducing space is because we can use smaller storage sizes for our representative values. For example, colors can be displayed with a 3 set series of 0-255 red, blue, and green values. However, a pointer towards a color can be stored in a single value, on a scale of 0-6 (if you only have 6 used colors). By using smaller datatypes, we can drastically decrease the storage requirements for images with only a slight loss in detail}**
+
+**\textcolor{blue}{Steps: The steps we will be taking are 1) Perform kmeans cluster for individual images (kmeans\_image()), 2) Use the output of the clustering to recreate the n by n compressed image (compress\_image().}**
+
+## First step
+
+Create a function `kmeans_image(image,n,k)`, where
+
+* `image` is square matrix representing an image
+* `n` is the number of rows/columns of the matrix
+* `k` is the number of clusters used
+
+The function should return a kmeans object (the output of the function `kmeans()`).
+
+The function should work by:
+
+* Finding all the 2x2 block of pixels from `image` and represent them as matrix with 4 columns (one column for each pixels) and as many rows as there 2x2 pixel blocks in `image` ($n^2/4$).
+* Performing kmeans with k-clusters and returning the output of the kmeans function.
+
+**\textcolor{blue}{The following function takes in a square matrix (created using row\_to\_img()) representing one of the cat images, the dimension n of the matrix, and the number of clusters k to be used. Then it returns the output of the kmeans function.}**
+
+```{r}
+kmeans_image <- function(image, n, k) {
+  if (ncol(image) != n) stop("Image must be a square matrix.")
+  if (n %% 2 != 0) stop("Matrix dimensions must be even.")
+
+  # Prepare storage for 2x2 blocks (n^2 / 4 rows, 4 columns)
+  num_blocks <- (n^2) / 4
+  block_matrix <- matrix(0, nrow = num_blocks, ncol = 4) %>% 
+    scale()
+
+  # Extract 2x2 blocks
+  row_idx <- 1
+  for (i in seq(1, n, by = 2)) {
+    for (j in seq(1, n, by = 2)) {
+      block_matrix[row_idx, ] <- c(
+        image[i, j],     image[i, j + 1],
+        image[i + 1, j], image[i + 1, j + 1]
+      )
+      row_idx <- row_idx + 1
+    }
+  }
+
+  # Perform k-means clustering
+  kmeans_result <- kmeans(block_matrix, centers = k)
+
+  return(kmeans_result)
+}
+
+
+kmeans_image(image_matrix.1, 64, 4)
+
+```
+
+
+**\textcolor{blue}{The function aboe first takes in the square image matrix, the dimension n of the mtarix, and the cluster number k. Then it creates a matrix of 4 columns representing the 4 pixel of a 2 by 2 block and each row is a single block from the original image. Then it performs kmeans clustering on the block matrix after scaling the matrix and with cluster number equal to function input k. Then it returns the output of the kmeans function.}**
+
+## Testing `kmeans_image()`
+
+Select and plot a cat image and apply your function `kmeans_image` to it using different values of `k` (You should at least consider 5 different values of `k`. Make sure your value range from a small value of k, to a value of k around 100). For each value of `k` report:
+
+**\textcolor{blue}{Below we use the function to plot the image as a greyscale matrix. (t(image\_matrix.1): "image\_matrix.1" is our greyscale matrix, we transpose it via the t() function to account for the default 90 degrees clockwise rotation of image() function.}**
+
+```{r}
+image(t(image_matrix.1),col=grey.colors(256)) 
+```
+
+**\textcolor{blue}{Below we use the kmeans\_image() function with multiple values for k with the same image to gain insights about output differences.}**
+
+```{r}
+# Performing k-means with different k values
+
+img1_kmeans_2 <- kmeans_image(image_matrix.1, 64, 2)
+img1_kmeans_4 <- kmeans_image(image_matrix.1, 64, 4)
+img1_kmeans_8 <- kmeans_image(image_matrix.1, 64, 8)
+img1_kmeans_16 <- kmeans_image(image_matrix.1, 64, 16)
+img1_kmeans_32 <- kmeans_image(image_matrix.1, 64, 32)
+img1_kmeans_64 <- kmeans_image(image_matrix.1, 64, 64)
+img1_kmeans_128 <- kmeans_image(image_matrix.1, 64, 128)
+img1_kmeans_256 <- kmeans_image(image_matrix.1, 64, 256)
+
+
+```
+
+
+
+
+* If you have $k$ clusters, we will have $s_i$, $i=1,\dots, k$ represent the size (number of elements) of cluster $i$. For each value of $k$ chosen, plot the distribution of the $s_i$ as a histogram. What happens to these histograms as you increase your value of $k$?
+
+
+**\textcolor{blue}{The code below plots the histogram of the cluster sizes for each value of k. Here cluster size represents the number of 2 by 2 blocks that are assigned to invidual clusters.}**
+
+
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(purrr)
+
+# Combining all clustering results into a tidy data frame
+cluster_list <- list(
+  `2` = img1_kmeans_2,
+  `4` = img1_kmeans_4,
+  `8` = img1_kmeans_8,
+  `16` = img1_kmeans_16,
+  `32` = img1_kmeans_32,
+  `64` = img1_kmeans_64,
+  `128` = img1_kmeans_128,
+  `256` = img1_kmeans_256
+)
+
+cluster_df <- map2_dfr(cluster_list, names(cluster_list), function(kmeans_obj, k) {
+  data.frame(cluster_size = as.numeric(table(kmeans_obj$cluster)), k = as.factor(k))
+})
+
+# Log-scaled histogram faceted by k
+ggplot(cluster_df, aes(x = cluster_size)) +
+  geom_histogram(bins = 30, fill = "red", color = "red") +
+  scale_x_log10()+
+  scale_y_log10() +
+  facet_wrap(~k, scales = "free_y") +
+  labs(
+    title = "Log-Scaled Cluster Size Distributions",
+    x = "Cluster sizes (log10)",
+    y = "Number of clusters (log10)"
+  )
+
+```
+
+
+
+
+
+**\textcolor{blue}{Ans: The x-axis of the histogram represents the cluster size. The y-axis represents the frequency, or the number of clusters that falls within the bandwidth of cluster sizes for each blue bars. As the value of k increases, the histograms show a clear shift towards smaller cluster sizes, indicating that there are more clusters that contain fewer elements. The distribution becomes more right-skewed for higher values of k, meaning most clusters are small while only a few retain relatively larger sizes. This pattern is expected, as increasing k forces the clustering algorithm to partition the data into finer groups irrespective of whether that cluster is naturally present in the data or not, naturally resulting in a larger number of smaller clusters. We can also see that the cluster sizes are most uniformly distributed when k is around 4-8 meaning the clusters are probably well partitioned.}**
+
+* For each value of $k$ chosen plot the centers of each of your clusters using a heatmap. What happens to the centers as you increase your value of $k$?
+
+**textcolor{blue}{The code below plots the centers of each cluster for each value of k in a grayscale color. The legend represent the pixel value corresponding to the color.}**
+
+```{r}
+library(pheatmap)
+library(grid)
+
+pheatmap(img1_kmeans_2$centers,
+         color = colorRampPalette(c("black", "white"))(256),
+         cluster_rows = FALSE,
+         cluster_cols = FALSE,
+         main = "Centers of 2-means clusters.")
+
+pheatmap(img1_kmeans_4$centers,
+         color = colorRampPalette(c("black", "white"))(256),
+         cluster_rows = FALSE,
+         cluster_cols = FALSE,
+         main = "Centers of 4-means clusters.")
+
+pheatmap(img1_kmeans_8$centers,
+         color = colorRampPalette(c("black", "white"))(256),
+         cluster_rows = FALSE,
+         cluster_cols = FALSE,
+         main = "Centers of 8-means clusters.")
+
+pheatmap(img1_kmeans_16$centers,
+         color = colorRampPalette(c("black", "white"))(256),
+         cluster_rows = FALSE,
+         cluster_cols = FALSE,
+         main = "Centers of 16-means clusters.")
+
+pheatmap(img1_kmeans_32$centers,
+         color = colorRampPalette(c("black", "white"))(256),
+         cluster_rows = FALSE,
+         cluster_cols = FALSE,
+         main = "Centers of 32-means clusters.")
+
+pheatmap(img1_kmeans_64$centers,
+         color = colorRampPalette(c("black", "white"))(256),
+         cluster_rows = FALSE,
+         cluster_cols = FALSE,
+         main = "Centers of 64-means clusters.")
+
+pheatmap(img1_kmeans_128$centers,
+         color = colorRampPalette(c("black", "white"))(256),
+         cluster_rows = FALSE,
+         cluster_cols = FALSE,
+         main = "Centers of 128-means clusters.")
+
+pheatmap(img1_kmeans_256$centers,
+         color = colorRampPalette(c("black", "white"))(256),
+         cluster_rows = FALSE,
+         cluster_cols = FALSE,
+         main = "Centers of 256-means clusters.")
+```
+
+
+**\textcolor{blue}{Ans: The heatmaps visualize the centroids (cluster centers) found by k-means at different values of k. Each row in a heatmap represents a cluster center (centroid). We grayscale color our mapping to allow us to see the intensity values of these centroids. At k = 2, we observe two centroids, one nearly white and one nearly black meaning their individual pixels values are very similar. This continues until k = 8 and then at k = 16 we starts to see centers that have significantly varying pixel values. But as we increase the number of k, we still observe the black and white ish centroids, but now we have more clusters containg shades of grey, as we capture more of variation of the image. At really large values of k (e.g. k = 256), we observe that we capture even further shades of grey, but ultimately most clusters are similar - hence, these numerous centroids with shades of grey that are not that different from each other results in the right skew in the histogram, confirming our previous observation.}**
+
+
+## Image compression
+
+Create and describe a function `compress_image(image,n,k)`, where
+
+* `image` is square matrix representing an image
+* `n` is the number of rows/columns of the matrix
+* `k` is the number of clusters used
+
+that returns an n by n matrix that corresponds to the compressed image using the vector quantization method. 
+
+**textcolor{blue}{The code below creates a function compress\_image() that takes in an square image matrix the dimension n of the image and the number of clusters k to be used for kmeans clustering and outputs the n by n suare matrix of the compressed image using vector quantization.}**
+
+```{r}
+# Function for plotting/extracting the compressed image from kmeans object
+compress_image <- function(image, n, k){
+  
+  kmeans_obj <- kmeans_image(image, n, k)
+  block_num <- length(kmeans_obj$cluster)
+  dim_smaller <- sqrt(block_num)
+  centers <- kmeans_obj$centers
+  
+  # matrix of 32 by 32 of pixel blocks with their cluster values
+  cluster_matrix <- matrix(kmeans_obj$cluster, nrow = dim_smaller, ncol = dim_smaller, byrow = TRUE)
+  
+  compressed_image_matrix <- matrix(0, nrow = n, ncol = n)
+  
+  for (i in seq(1,dim_smaller)) {
+    for (j in seq(1,dim_smaller)) {
+      for (k in seq(1, k)) {
+        if(cluster_matrix[i,j] == k) {
+          row_idx = i*2
+          col_idx = j*2
+          compressed_image_matrix[row_idx-1, col_idx-1] = centers[k,1]
+          compressed_image_matrix[row_idx-1, col_idx] = centers[k,2]
+          compressed_image_matrix[row_idx, col_idx-1] = centers[k,3]
+          compressed_image_matrix[row_idx, col_idx] = centers[k,4]
+          
+        }
+        
+      }
+      
+    }
+    
+  }
+  #plotImage(compressed_image_matrix)
+  
+  return(compressed_image_matrix)
+  
+
+}
+
+
+```
+
+**textcolor{blue}{The compression function applies Vector Quantitization(VQ) (to compress the images) via applying k-mean clustering; our input is a 64*64 (n*n) matrix. By applying k-means, we obtain the centroids (which are representitative pixel values for each cluster - we can call them archetypes), and each pixel block (2*2) is assigned to a cluster. To reconstruct the compressed version of the image, we then assign each pixel block with its corresponding centroids - doing so, we obtain a compressed image. The output of the above function is a matrix representation of the compressed image after doing VQ.}**
+
+
+## Testing `compress_image()`
+
+Select and plot at least two cat image and apply your function `compress_image` to it using different values of `k` (You should at least consider 5 different values of `k`. Make sure your value range from a small value of k, to a value of k around 100). For each cat image plot the original cat image, and the compressed images using the different values of k. Discuss your results.
+
+**\textcolor{blue}{The code below plots original and compressed version of first two cat images in image\_matrix.}**
+
+```{r}
+# ploting the original and compressed versions of first image in image_matrix
+par(mfrow = c(2,2))
+plotImage(image_matrix[1,])
+image_matrix.1 <- row_to_img(image_matrix[1,])
+compressed_img_mat <- compress_image(image_matrix.1, 64,2)
+image(t(compressed_img_mat),col=grey.colors(256))
+compressed_img_mat <- compress_image(image_matrix.1, 64,4)
+image(t(compressed_img_mat),col=grey.colors(256))
+compressed_img_mat <- compress_image(image_matrix.1, 64,16)
+image(t(compressed_img_mat),col=grey.colors(256))
+par(mfrow = c(1,1))
+```
+
+
+```{r}
+# plotting the original and compressed versions of second image in image_matrix
+par(mfrow = c(2,2))
+plotImage(image_matrix[2,])
+image_matrix.2 <- row_to_img(image_matrix[2,])
+compressed_img_mat <- compress_image(image_matrix.2, 64,2)
+image(t(compressed_img_mat),col=grey.colors(256))
+compressed_img_mat <- compress_image(image_matrix.2, 64,4)
+image(t(compressed_img_mat),col=grey.colors(256))
+compressed_img_mat <- compress_image(image_matrix.2, 64,16)
+image(t(compressed_img_mat),col=grey.colors(256))
+par(mfrow = c(1,1))
+```
+
+**\textcolor{blue}{To test the "compress\_image()" function, we apply it to two cat images and compare the results by plotting the original image side by side with the compressed image at different values of K (k = 2, 4, 16); this allows us to observe how the compressed image compare to its original image as we increase the value of K. We observe that the compressed image retains more details and is closer to its corresponding original image as we increase the value of K. For both images that we tested, we see that as we increase the number of K, the compressed image becomes closer to its original image}** 
+
+
+
+## Image comparison
+
+Create and describe a function `dist(image1, image2, n)`, where
+
+* `image1` and `image2` are square matrices representing images
+* `n` is the number of rows/columns of both matrices
+
+The function should return a number representing the euclidean distance between `image1` and `image2`
+
+**\textcolor{blue}{The code below creates the function to calculate the euclidean disntace between the pixel values of two images (original, and compressed).}**
+
+```{r}
+dist <- function(image1, image2, n) {
+  currentSum <- 0
+  for (i in 1:n) {
+    for (j in 1:n) {
+      currentSum <- currentSum + (image1[i,j]-image2[i,j])^2
+    }
+  }
+  return(sqrt(currentSum))
+}
+```
+
+**\textcolor{blue}{To evaluate the effectiveness of the compression, we measure the Euclidean distance between the original and compressed images using a function dist(image1, image2, n). This function calculates the pixel-wise differences between two images and returns a single numeric value (euclidean distance) representing how much information is lost due to compression. By applying this function across different values of k, we quantify how closely the compressed image resembles the original. The function takes the square matrices (64*64) as its input, and uses for loops for pixel wise subtractions in order to calculate the Euclidean diatnce.}**
+
+
+## Finding the optimal `k`
+
+Select a cat image and calculate the distance between the original image and the compressed image when using k=10,20,30,...,300. Plot the distance as a function of k and use it to establish and justify what *optimal* value of `k` you would use to compress the cat image without too much resolution lost. Repeat this process using 5 different cat images. Do you get similar values of *optimal* `k` for each of your images? Why (or why not?)
+
+**\textcolor{blue}{The code below creates a function to compress an image with different values of k and records the eucliden distance between the original image and compressed images. The it plots the k vs distance scatterplot.}**
+
+```{r}
+findOptimalk <- function(imageNum) {
+  catData <- tribble(
+    ~k, ~distance,
+  )
+  
+  for(i in seq(10,300,by=10)) {
+    compressed <- compress_image(row_to_img(image_matrix[imageNum,]), 64, i)
+    catAdding <- tribble(
+      ~k, ~distance,
+      i,  dist(row_to_img(image_matrix[imageNum,]), compressed, 64),
+    )
+    catData <- rbind(catData, catAdding)
+  }
+  return(catData)
+}
+```
+
+**\textcolor{blue}{The code below creates the k (x-axis) vs Euclidean distance (y-axis) scatterplots for 5 different cat images.}**
+
+```{r}
+par(mfrow = c(2,3))
+# plotting the distance vs k  
+img_43 <- findOptimalk(43)
+plot(img_43$k, img_43$distance, xlab = "Cluster number (k)", ylab = "Euclidean distance")
+img_4 <- findOptimalk(4)
+plot(img_4$k, img_4$distance, xlab = "Cluster number (k)", ylab = "Euclidean distance")
+img_7 <- findOptimalk(7)
+plot(img_7$k, img_7$distance, xlab = "Cluster number (k)", ylab = "Euclidean distance")
+img_19 <- findOptimalk(19)
+plot(img_19$k, img_19$distance, xlab = "Cluster number (k)", ylab = "Euclidean distance")
+img_23 <- findOptimalk(23)
+plot(img_23$k, img_23$distance, xlab = "Cluster number (k)", ylab = "Euclidean distance")
+par(mfrow = c(1,1))
+```
+
+**\textcolor{blue}{Lastly, we determine the optimal value of k by computing the Euclidean distance for different k values ranging from 10 to 300 in increments of 10. The results are plotted to visualize the relationship between k and image similarity. Similar to the Within Sum of Squares (WSS) method used in clustering, we look for an "elbow" in our plot, where increasing k beyond a certain value causes the distance to decrease at a lower rate (diminishing returns. This helps us identify the optimal range of K. The function plots the Euclidean ditances between the original and compressed images using different values of K. In order to choose which k is optimal, we look for an elbow to see which range of K values would be most optimal. As we can see in the 5 plots above the elbows seem to appear somewhere in between k=100-150. Though the elbows are not quite distinct in the plots after 100 clusters the the reduction in the distance for increased value of k is significantly diminished.}**
+

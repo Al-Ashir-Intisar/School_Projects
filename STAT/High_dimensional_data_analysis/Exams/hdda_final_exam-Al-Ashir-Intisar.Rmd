@@ -1,0 +1,351 @@
+---
+title: "High Dimensional Data Analysis Final Exam"
+author: "Jaime Davila"
+date: "5/12/2025"
+output:
+  html_document: default
+  pdf_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE)
+library(factoextra)
+library(pheatmap)
+library(tidyverse)
+library(softImpute)
+library(Rcpp)
+```
+
+### Exam 2 Guidelines
+
+- You have until Friday May 16th at 11am  to complete this exam. Submit it as a knitted markdown PDF document in the appropriate dropbox in moodle. If you submit the solution as an .Rmd you will be penalized by taking 20 points off your grade.
+
+- You are to work completely independently on the exam. You are allowed to use your class notes, moodle, worksheets, textbooks, plus the "Help" feature from Rstudio.
+
+- You **are not** permitted to do web searches, use any large language models software (e.g. ChatGPT or Gemini), or online assignment help tools.
+
+- For questions that ask for interpretations and explanations, usually no more than a sentence or two is needed for justification.  Be thorough, but do not “brain dump”.
+
+**PLEDGE:**  I pledge on my honor that I have neither received nor given assistance during this exam nor have I witnessed others receiving assistance, and I have followed the guidelines as described above.  
+
+**PRINTED NAME: Al Ashir intisar** 
+
+$\bigcirc$ I have intentionally **not signed** the pledge.
+
+
+# Reflection (10 points)
+
+Give one example of an idea or method from this class that you found creative, innovative or especially interesting, and explain what you found compelling about it. For example, you can choose a method covered in class, the application of a method from class to solve a problem from a different domain, or you can choose an instance of creativity you experienced in your own problem-solving.
+
+**Ans: I found the Isomap method for dimensionality reduction very interesting. Specially the idea of manifold and geodesic distance. I felt like this method was very intuitive and quite simple in principle. Use of nearest neighbor model to compute the weighted graph for finding the geodesic distance was the most creative part of the algorithm from my personal understanding.**
+
+\newpage
+
+# Alone (50 points)
+
+`Alone` is a TV series where participants survive in the wild by themselves for as long as possible. Each contestant is only allowed to bring 10 items that would help them survive in the wild, in addition to their clothing and shoes.
+
+
+Our dataset can be loaded as follows
+
+```{r}
+alone_items_tbl <- read_csv("~/Sds_333_S25/Class/Data/alone_items.csv")
+```
+
+The first two columns of our dataset correspond to the `name` and `season` of each participant. The remaining columns correspond to each of the items a participants bring (coded as `1`) or doesn't bring (coded as `0`).
+ 
+Based on this dataset we can create the matrix `alone_items_mat` where each participant is represented as row, and where the columns represent whether a participant brought a particular item.
+
+```{r}
+alone_items_mat <- alone_items_tbl |>
+  select (-season, -name) |>
+  data.matrix()
+rownames(alone_items_mat) <- alone_items_tbl$name
+```
+
+
+## A: Item trends (15 points)
+
+We are interested in finding groups of participants according to which  group of items they bring to the show. We are also interested in understanding if the participants' choice of items has changed through the seasons of the show. 
+
+* Use `pheatmap` on `alone_items_mat` to create a heatmap to visualize the items each partipant brings, making sure to divide your observations and columns into less than 5 clusters by experimenting with the use of `cutree_rows` and `cutree_cols`. Use the parameter `annotation_row` (see worksheet `4_pca>3_pca_cluster.Rmd` for an example) to create an additional separate track (column) representing the season. 
+
+
+```{r}
+seasons <- select(alone_items_tbl, season) |> as.data.frame() %>% 
+  mutate(season = as.factor(season))
+rownames(seasons) <- rownames(alone_items_mat)
+
+pheatmap(alone_items_mat, cutree_rows = 4, cutree_cols = 5, annotation_row = seasons, legend = F)
+
+```
+
+
+* Interpret each clusters of observations in the context of the problem. What do these clusters show?
+
+**Ans: We can see that the bottom cluster of participants mostly comprised of later seasons (6-9), and not a lot of them took rations and knife with them as opposed to the other 3 clusters. The next cluster is also comprised of later seasons (6-9) but few of them took axe and multitool and all of them took knife with them, The next cluster comprised of earlier seasons (1-3) and very few of them took multitool, trapping_wire, bow and arrow, and paracord. The last cluster is just one participant Justin Vititoe who took tools that were significantly different than anoone else. So we do see differences in the tools participants of different seasons took.**
+
+
+
+* Is there a relationship between the clusters of observations and the season of the show? Based on your heatmap describe how the participant's choice of items have changed through the seasons.
+
+**Ans: Yes, there is a clear relationship between the clusters of observations and the season of the show since each sluster only contains specific group of seasons. Participants in the later seasons took more similar items with them as opposed to participants in the later seasons. Saw, axe, ferro rod, fishing gear, sleeping bag and pot were common across all clusters. Whereas multitool, trapping wire, bow and arrow, and paracord were more common across later seasons compared to earlier seasons.** 
+
+## B: PCA (20 points)
+
+* Perform a PCA analysis on `alone_items_mat` and justify whether or not to scale your data. 
+
+**Ans: Since the values of the matrix columns are binary (meaning in the same unit) there is no need to scale it before performing PCA.**
+
+```{r}
+alone_items_pca <- prcomp(alone_items_mat)
+```
+
+
+* Draw and interpret the loadings corresponding to the first two principal components ($\phi_1$ and $\phi_2$ ). 
+
+```{r}
+fviz_pca_biplot(alone_items_pca, axes = c(1,2))
+```
+
+**Ans: Paracord, bow and arrow, trapping wire and multitool contributes negitavily to PC1 whereas knife, rations and gillnet contributes positively to PC1. Here PC1 kind of represents if the observation is from the cluster of later seasons or not. for PC2 axe contributes negatively and knife and paracord contributes positively.**
+
+* Based on the loadings discuss the relationship between `knife` and `multitool` in the context of the problem.
+
+**Ans: As we can see from the biplot knife contributes positively for both PC1 and PC2 whereas multitool contributes negatively to both PC1 and PC2. This implies they explain different variations in the dataset. This is likely due to the fact that most multitools comes with a knife. So if a participant takes multitool hey usually won't take a knife as well.**
+
+* Plot the first two scores from all the participants, select participants from each quadrant, and interpret them in the context of the problem.
+
+**Ans: Q1: Callie North, Carleigh Fairchild:- both in the first quadrant meaning they had knife with them and not multitool; Q2: Jessie Kerbs, Josh Chavez:- both in the second quadrant meaning they both probably had paracord, and bow & arrow; Q3: Jordon Bell, Adam Riley:- they are in the third quadrant meaning they probably had ax and multitool wth them; Q4: Jose Martinez Ameodo, Nicole Apellian:- they are in the fourth quadrant and probably had axe, rations and gillnet with them.**
+
+```{r}
+first_2_scores <- as.data.frame(alone_items_pca$x[,1:2])
+
+first_2_scores$participant <- rownames(first_2_scores)
+
+first_2_scores %>% 
+  ggplot(aes(PC1, PC2))+
+  geom_point()+
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_hline(yintercept = 0, linetype = "dashed")+
+  geom_text(aes(label = participant), vjust = -0.5, size = 4) +
+  labs(title = "PCA Scores: Participants by Item Selection",
+       x = "PC1", y = "PC2")
+```
+
+
+
+## C: Another technique (15 points) 
+
+Out of the techniques learnt in the last 2 weeks of the class, select one of them (you cannot use the same technique you presented in class) and use it on the `Alone` dataset. Make sure to interpret your results in the context of the problem.
+
+
+```{r}
+library(kohonen)
+library(aweSOM)
+```
+
+
+```{r}
+set.seed(2045)
+
+xdim <-  3          
+ydim <- 3  
+init <- somInit(alone_items_mat, xdim, ydim)
+alone_som <- kohonen::som(alone_items_mat,
+                           grid = somgrid(xdim, ydim, "hexagonal"),
+                           rlen = 100,
+                           alpha = c(0.05, 0.01),
+                           radius = c(2.65, -2.65),
+                           dist.fcts = "sumofsquares",
+                           init = init)
+
+```
+
+
+```{r}
+
+aweSOMplot(som = alone_som, 
+           data = alone_items_mat, 
+           type = "Circular")
+
+```
+
+**Asn: I used SOM because it effectively clusters participants based on item selection patterns while preserving the topological relationships between similar clusters. From the interactive plot we can see that participants has been in essence clustered based on the variations of items they have taken with them. Since everyone took sleeping bag with them it does not show up in the map. Clusters on the top left corner are mostly participants with tools like: saw, axe, sleeping_bag, pot, ferro_rod, canteen, fishing_gear, gillnet and clusters on the bottom right are participants with mostly multitool, frying_pan, rope, hammock, shovel, trapping_wire, scotch_eyed_auger, salt**
+
+\newpage
+
+
+# Dogs (40 Points)
+
+The American Kennel Club compiled information about the characteristics of dogs, which we will load on `dog_traits`:
+
+```{r}
+set.seed(12345)
+
+dog_traits <- read_csv("~/Sds_333_S25/Class/Data/dog_traits.csv") 
+```
+
+A description of the different characteristics can be found in the `trait_description` table below:
+
+```{r}
+(trait_description <- read_csv("~/Sds_333_S25/Class/Data/trait.desc.csv") |>
+   slice_head(n=5))
+```
+
+All of the variables are in a scale of `1` to `5`, except for `Coat Type` and `Coat Length`, so we will exclude those variables from our dataset. For practical purposes we will select only 50 breeds:
+
+```{r}
+set.seed(12345)
+dog_trait_tbl <- dog_traits |>
+  slice_sample(n=50) |>
+  select (-c(`Coat Type`, `Coat Length`))
+```
+
+
+## A: Trait visualization (10 points)
+
+We are interested in **what group of traits co-occur in dogs across our dataset** (for example being `open to strangers` tends to occur in dogs at the same time as `playfulness level`). 
+
+* Use `pheatmap` to create a heatmap to address this question and divide your visualization into $k$ **clusters ($k<=5$) of traits**, and make sure to label your rows and columns.
+
+```{r}
+dog_trait_mat <- dog_trait_tbl |>
+  select ( -Breed) |>
+  data.matrix()
+rownames(dog_trait_mat) <- dog_trait_tbl$Breed
+```
+
+
+```{r}
+seasons <- select(alone_items_tbl, season) |> as.data.frame() %>% 
+  mutate(season = as.factor(season))
+rownames(seasons) <- rownames(alone_items_mat)
+
+pheatmap(dog_trait_mat, cutree_rows = 5, cutree_cols = 3)
+```
+
+
+* Interpret each of the **clusters of traits**, in the context of your problem.
+
+**Ans: We can see that the first cluster of traits is related to maintanance related. Such as how often does it need to be groomed or does it drool or not. The next luster is mostly made of traits related to how active the dog is in different ways such as energy level playfulness adaptability. The last cluster is of how calm and welcoming the dog is.**
+
+
+## B: Dog archetypes (15 points)
+
+
+We would like to describe each dog from our dataset as a linear combination of `dog archetypes`, using an NMF analysis with a rank of 3. 
+
+* Implement below an NMF analysis using the library `Rcpp` (see worksheet `8_images>2_classification_nmf.Rmd` for an example) and describe why using an NMF analysis is preferable to a PCA analysis in this setting. 
+
+**Ans: In this setting it is preferable to use NMF instead of PCA for better interpretibility. Meaning using NMF we will be actually explain which traits corresponds to which archetyppe as opposed to PCA where loadings can be negative which is not interpretable in our context since all the values of the original dataset is positive.**
+
+```{r}
+library(Rcpp)
+set.seed(12345)
+
+ndim <- 3
+
+dog_nmf <- RcppML::nmf(t(dog_trait_mat), k = ndim, verbose=FALSE)
+
+```
+
+* Plot your $W$ and $H$ matrices in the context of this problem, clearly labeling the rows and columns of your visualization, and interpreting which traits each of the `dog archetypes` has.
+
+
+```{r}
+W_dog <- dog_nmf$w
+H_dog <- dog_nmf$h
+
+rownames(W_dog) <- colnames(dog_trait_mat) 
+colnames(W_dog) <- paste0("Archetype_", 1:ndim)
+
+colnames(H_dog) <- rownames(dog_trait_mat) 
+rownames(H_dog) <- paste0("Archetype_", 1:ndim)
+
+```
+
+**Ans: Archetype 1 represents dogs with high energy level, high mental stimulus needs, protective nature, trainable, and affectionate. Archetype 2 represents dogs with more social skills and less need for grooming. The archetype 3 represents dogs with low energy, high need for grooming and social character.**
+
+```{r}
+pheatmap(W_dog, 
+         cluster_rows = TRUE, 
+         cluster_cols = FALSE, 
+         main = "Trait vs Dog Archetypes")
+```
+
+
+```{r}
+pheatmap(t(H_dog), 
+         cluster_rows = TRUE, 
+         cluster_cols = FALSE, 
+         main = "Breed vs Dog Archetypes")
+```
+
+
+
+* Use the plots of your $W$ and $H$ matrices to describe what traits characteristics do `Yorkshire Terriers`, `Siberian Huskies`, and `Dalmatians` have.
+
+**Ans: Yorkshire Terriers is mostly Archetype 3 which is high energy level with protective nature. Siberian Huskies are mostly archetype 2 which is dogs with less grooming and more soial skills. Lastly, Dalmatians are mostly archetype 1 which means they need high grooming, low energy level but social.**
+
+
+## C: Yet Another technique (15 points) 
+
+Out of the techniques learnt in the last 2 weeks of the class, select one of them (you cannot use the same technique you presented in class, or the one that you used for `Alone`, part C) and use it to describe this dataset. Making sure to interpret the results in the context of this problem.
+
+
+```{r}
+library(elasticnet)
+```
+
+
+```{r}
+dog_trait_scaled <- scale(dog_trait_mat)
+spca_res <- spca(dog_trait_scaled, K = 3, sparse = "penalty", para = c(5, 5, 5))
+```
+
+
+```{r}
+loadings_spca <- spca_res$loadings
+colnames(loadings_spca) <- paste0("SparsePC", 1:3)
+rownames(loadings_spca) <- colnames(dog_trait_scaled)
+
+```
+
+```{r}
+pheatmap(loadings_spca, cluster_rows = TRUE, main = "Sparse PCA Loadings (Traits)")
+```
+
+```{r}
+loadings_df <- as.data.frame(spca_res$loadings)
+colnames(loadings_df) <- paste0("SparsePC", 1:3)
+loadings_df$Trait <- rownames(loadings_df)
+```
+
+```{r}
+loadings_long <- loadings_df |>
+  pivot_longer(cols = starts_with("SparsePC"), names_to = "PC", values_to = "Loading") |>
+  mutate(AbsLoading = abs(Loading)) |>
+  group_by(PC) |>
+  slice_max(order_by = AbsLoading, n = 5) |>
+  ungroup()
+```
+
+```{r}
+ggplot(loadings_long, aes(x = reorder(Trait, AbsLoading), y = Loading, fill = PC)) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~PC, scales = "free") +
+  coord_flip() +
+  labs(title = "Top 5 Traits per Sparse Principal Component", x = "Trait", y = "Loading") +
+  theme_minimal(base_size = 14)
+
+```
+
+**Ans:I used Sparse PCA because it enhances interpretability by focusing on only a few key traits per component, making it similar to distinct dog archetypes to an extents. Sparse PCA revealed three key dog archetypes: SparsePC1 reflects friendly, trainable, and adaptable companion dogs. SparsePC2 captures protective yet affectionate breeds with good social behavior. SparsePC3 identifies high-energy, high-maintenance dogs needing stimulation and grooming.**
+
+
+
+
+

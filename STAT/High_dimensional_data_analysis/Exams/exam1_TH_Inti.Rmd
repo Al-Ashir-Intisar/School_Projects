@@ -1,0 +1,218 @@
+---
+title: "HDDA First exam: Take home"
+author: "AL Ashir Intisar"
+date: "3/19/25"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, warning=FALSE, message=FALSE, echo=FALSE}
+knitr::opts_chunk$set(warning=FALSE,message=FALSE,cache = TRUE)
+library(tidyverse)
+library(pheatmap)
+library(dslabs)
+library(factoextra)
+```
+
+\newcommand{\pledgeline}{
+\setlength{\unitlength}{1in}
+\begin{picture}(6, .125)
+\put(0,0){\line(1,0){4}}
+\end{picture}
+}
+
+\newcommand{\ret}{
+\vspace{1cm} }
+\newcommand{\reta}{
+\vspace{.5cm} }
+\newcommand{\retb}{
+\vspace{2.5cm} }
+\newcommand{\retc}{
+\vspace{3.2cm} 
+}
+
+### Exam 1 Guidelines
+
+- The exam is due on Friday 3/21 by 10AM. Submit a knitted PDF generated from your .Rmd in Moodle before the deadline. Make sure to save a copy of your .Rmd in your Student folder, and don't modify it after the deadline.
+
+- You are to work completely independently on the exam. 
+
+- You are allowed to use your class notes, moodle, worksheets, homeworks, textbooks, plus the "Help" feature from Rstudio.
+
+- You **are not** permitted to do web searches. You **are not** permitted to use LLM tools (like ChatGPT or Gemini)
+
+For questions that ask for interpretations and explanations, usually no more than a sentence or two is needed for justification.  Be thorough, but do not “brain dump”.
+
+**PLEDGE:**  I pledge on my honor that I have neither received nor given assistance during this exam nor have I witnessed others receiving assistance, and I have followed the guidelines as described above.  
+
+\vspace{3mm}
+
+**SIGNATURE: Al Ashir Intisar** \pledgeline
+
+$\bigcirc$ I have intentionally not signed the pledge.
+
+\vspace{3mm}
+
+# Introduction
+
+About 20,000 new cases of ovarian cancer are reported every year in the U.S. In the following set of exercises we will explore genomic data generated from a cohort of ovarian cancer cases. 
+
+We will be using the following dataset for our questions
+
+```{r}
+mut_table <- read_csv("~/Sds_333_S25/Class/Data/oc_mut_sig.csv") 
+```
+
+The following is a description of each of the columns of this dataset
+
+* sample: Id of the case
+* mut_type: Representation of a particular type of mutation. For example `A[C>T]G` means this a C to T mutation, where the base (letter) before the change is an A, and the base (letter) after the change is a G. 
+* num: How many mutations of type `mut_type` where found in a particular case 
+
+# A. Transform (10 points)
+
+* Convert `mut_table` into a matrix `mut_profile_matrix`, where the rows represent each sample and the columns represent the number of mutations of particular type. Your matrix should look something like (notice the actual numbers maybe different). 
+
+```
+            A[C>A]A A[C>A]C A[C>A]G A[C>A]T    ... 
+id1      12       3       4       2   ...
+id2       7       9       2      12   ...
+id3       1       3       0       3   ...
+...
+```
+
+```{r}
+# creating the matrix table with row names column
+matrix_table <- mut_table %>% 
+  pivot_wider(names_from = mut_type, values_from = num) 
+
+#creating the matrix without rownames 
+mut_profile_matrix <- as.matrix(matrix_table[,-1])
+# adding the rownames to the matrix
+rownames(mut_profile_matrix) <- matrix_table$sample
+# viewing the matrix
+mut_profile_matrix[1:5,1:5]
+```
+
+
+
+
+* What are the dimensions of `mut_profile_matrix`? Argue whether or not this is a high dimensional dataset.
+
+```{r}
+dim(mut_profile_matrix)
+```
+
+**\textcolor{blue}{Ans: There are 35 rows and 96 columns in this matrix which makes it a high dimensional dataset because there are more variables than observations in this dataset.}**
+
+# B. Create a heatmap (10 points)
+
+* Create a heatmap from `mut_profile_matrix` with two clusters. Make sure to label the rows from the heatmap with sample ids, and label the columns using the mutation type. Use the correlation distance and the average method for merging clusters.
+
+```{r}
+# plotting heatmap using hierarchical clustering
+pheatmap(mut_profile_matrix, cutree_rows = 2, clustering_distance_rows = "correlation", clustering_method = "average", cluster_cols = FALSE, show_rownames = TRUE, show_colnames = TRUE, fontsize = 6, main = "Heatmap of Gene Mutation Clusters")
+```
+
+
+* What subset of features are very different across the two clusters of samples that you identified? 
+
+**\textcolor{blue}{Ans: The mutation T[C>A]T, T[C>T]G, and T[T>G]T are most different across the two clusters.}**
+
+# C. Interpret Principal Component Analysis (20 points)
+
+* Run a principal component analysis on `mut_profile_matrix` without scaling. Justify why you don't need to do scaling in this case.
+
+```{r}
+pca_gene_mut <- prcomp(mut_profile_matrix)
+```
+
+**\textcolor{blue}{Ans: The num variable in the initial dataset means How many mutations of type `mut\_type` where found in a particular case. This value is in the same unit across all the mutation types. Therefore, we do not need to scale the values.}**
+
+* Generate a scree plot and find out much of the total variation can be explained by the first two components. Plot your first two scores across all your observations. Compare your results against the heatmap from section B ; do elements of a particular cluster tend to have distinctive set of scores?
+
+
+```{r}
+fviz_screeplot(pca_gene_mut, addlabels = TRUE, ylim = c(0, 100))+
+labs(title = "Gene Mutation Frequency pca scree plot")
+
+```
+
+**\textcolor{blue}{Ans: The first to PC can explain about 88\% of the variation in the dataset.}**
+
+```{r}
+fviz_pca_ind(pca_gene_mut, axes = c(1,2))
+```
+
+**\textcolor{blue}{Ans: As we can see in the above plot cases s\_PH098, s1133902719, s\_1324B, s1133903279, and s\_1296A have distinctly different values from the rest of the cases. One but all of them are in the top smaller cluster in the heatmap from section B.}**
+
+
+
+* Interpret the first two loadings from your PCA analysis. What features contribute heavily to each of the first two principal components?
+
+```{r}
+# plotting PC1 and PC2 and their contributors
+fviz_pca_var(pca_gene_mut, axes = c(1,2))
+```
+
+
+
+```{r}
+# finding the highest positive contribution to PC1
+as.data.frame(pca_gene_mut$rotation[,1:2]) %>% 
+  arrange(desc(PC1)) %>% 
+  head(n = 5)
+
+# Finding the highest negative contribution to PC1
+as.data.frame(pca_gene_mut$rotation[,1:2]) %>% 
+  arrange(PC1) %>% 
+  head(n = 5)
+
+
+  
+```
+
+**\textcolor{blue}{Ans: For PC1 the top 5 positivly contributing mutations are: T[C>A]T  6.604024e-01, T[C>T]G  6.334216e-01, G[C>T]G  2.626998e-01, T[T>G]T  2.212625e-01, and A[C>T]G  9.584627e-02. And top 5 negativly contributing mutations are: T[C>G]T -1.081118e-02, A[C>T]A -9.602760e-03, A[C>A]C -7.981946e-03, T[C>G]C -7.924906e-03, and G[C>G]A -7.349821e-03}**
+
+
+```{r}
+
+# finding the highest positive contribution to PC2
+as.data.frame(pca_gene_mut$rotation[,1:2]) %>% 
+  arrange(desc(PC2)) %>% 
+  head(n = 5)
+
+# Finding the highest negative contribution to PC2
+as.data.frame(pca_gene_mut$rotation[,1:2]) %>% 
+  arrange(PC2) %>% 
+  head(n = 5)
+
+
+  
+```
+
+**\textcolor{blue}{Ans: For PC2 the top 5 positivly contributing mutations are: G[C>T]G  0.6387686940, C[C>T]G  0.2484113322, G[C>T]C  0.2014027325, A[C>T]G  0.1992645313, and G[T>C]C  0.1448278618. And top 5 negativly contributing mutations are: T[C>A]T  -0.5317170881, T[C>A]A  -0.0507248435, A[C>A]T  -0.0087648659, T[C>A]C  -0.0049993826, and A[T>G]T  -0.0031206147}**
+
+
+
+* Generate a heatmap from the first two scores across all your observations, and group according to two clusters. Make sure to label the rows from the heatmap with the sample ids, and label the columns according to the principal component they refer to (PC1,PC2). Use the correlation distance and the average method for merging clusters. Compare your heatmap and cluster with the heatmap you generated in section B. Are the clusters the same? If the results are different, justify which heatmap/clustering is more accurate and why.
+
+
+```{r}
+score12_mat <- pca_gene_mut$x[,1:2]
+
+
+# plotting heatmap using hierarchical clustering and principal components
+pheatmap(score12_mat, cutree_rows = 2, clustering_distance_rows = "correlation", clustering_method = "average", cluster_cols = FALSE, show_rownames = TRUE, show_colnames = TRUE, fontsize = 6, main = "Heatmap of Gene Mutation Clusters with Pincipal Components")
+```
+
+
+**\textcolor{blue}{Ans: The smaller cluster in section B heatmap were comprised of 5 cases: s\_2749B, s\_1296A, s\_1324B, s1133902719, and s\_PH098. Even though case s1133903279 looks a lot like the rest of the cases of the smaller cluster it was not included in that cluster. But in the heatmap and clusters with first two principal components that sixth case s1133903279 was included in the smaller cluster which makes it more accurate.}**
+
+
+
+

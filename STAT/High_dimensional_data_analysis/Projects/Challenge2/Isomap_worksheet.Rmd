@@ -1,0 +1,439 @@
+---
+title: "Isomap"
+author: "Al Ashir Intisar"
+date: "2025-04-22"
+output: pdf_document
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r, message=FALSE,warning=FALSE}
+library(FNN)
+library(igraph)
+library(pheatmap)
+library(vegan)
+library(mlbench)
+library(dimRed)
+library(ggplot2)
+library(readr)
+library(dplyr)
+```
+
+
+
+## The Isomap Algorithm
+
+1. **Given** some abstract data points \( X_1, ..., X_n \) and a distance function \( d(x_i, x_j) \).
+
+2. **Build a k-nearest neighbor (kNN) graph** where the edges are weighted by the distances.  
+   *These are the local distances.*
+
+3. **In the kNN graph, compute the shortest path distances** \( d_{sp} \) between all pairs of points and write them in the matrix \( D \).  
+   *They correspond to the geodesic distances.*
+
+4. **Apply metric MDS with \( D \) as input.**  
+   *Finds an embedding that preserves the geodesic distances.*
+
+
+```{r}
+# R code to generate and plot an S-shaped curve in 2D
+set.seed(42)
+x <- seq(-3, 3, length.out = 100)
+y <- sin(x)
+
+# Add slight noise to make it more natural
+x_noise <- x + rnorm(100, 0, 0.05)
+y_noise <- y + rnorm(100, 0, 0.05)
+
+# Plot
+plot(x_noise, y_noise, pch = 19, col = "blue", main = "S-shaped 2D Data", xlab = "x", ylab = "y")
+
+```
+
+
+## In the plot above even though the data points lives in a 2D graph/space they form a S shaped 1D manifold. 
+
+## Now let's build the k-nearest neighbor graph where edges are weighted by distances. (Remeber that in a small local region, Euclidean (extrinsic) distances between points on a manifold approximately coincide with the geodesic (intrinsic) distances).
+
+
+```{r}
+# Compute k-nearest neighbors (e.g., k = 5)
+data <- cbind(x_noise, y_noise)
+k <- 5
+nn <- get.knn(data, k = k)
+```
+
+
+```{r}
+# Create edge list from neighbors
+edges <- do.call(rbind, lapply(1:nrow(nn$nn.index), function(i) {
+  cbind(rep(i, k), nn$nn.index[i, ])
+}))
+```
+
+
+```{r}
+# Create graph
+g <- graph_from_edgelist(edges, directed = FALSE)
+```
+
+
+```{r}
+# Optional: remove duplicate edges
+g <- simplify(g)
+
+# Plot the graph overlaid on data points
+plot(g, 
+     layout = data, 
+     vertex.size = 3, 
+     vertex.label = NA, 
+     edge.color = "gray", 
+     main = "k-Nearest Neighbor Graph (k = 5)")
+```
+
+
+
+## Compute the shortest distance (geodesic) matrix among the points in the weighted knn neighborhood graph using Dijkstra's algorithm. 
+
+
+```{r}
+# Compute distances for the edges
+edge_weights <- apply(edges, 1, function(idx) {
+  i <- idx[1]
+  j <- idx[2]
+  sqrt(sum((data[i, ] - data[j, ])^2))  # Euclidean distance
+})
+```
+
+
+```{r}
+# Create weighted igraph object
+g_weighted <- graph_from_edgelist(edges, directed = FALSE)
+E(g_weighted)$weight <- edge_weights
+```
+
+```{r}
+# Compute the shortest path (geodesic) distance matrix using Dijkstra's algorithm
+D_geo <- distances(g_weighted, weights = E(g_weighted)$weight, algorithm = "dijkstra")
+```
+
+
+```{r}
+# Plot the heatmap of the distance matrix
+D_geo[!is.finite(D_geo)] <- NA  # Replace Inf with NA
+pheatmap(D_geo,
+         cluster_rows = FALSE,
+         cluster_cols = FALSE,
+         main = "Geodesic Distance Matrix")
+```
+
+
+## Now apply classical Multidimensional Scaling to embed the datapoints into a 1D line graph that preserves the intrinsic (geodesic) distances among the points.
+
+```{r}
+# Apply Classical MDS (cmdscale) to geodesic distance matrix
+mds_1d <- cmdscale(D_geo, k = 1, eig = TRUE)
+
+# Extract the 1D coordinates
+coords_1d <- mds_1d$points
+
+# Plot the 1D embedding
+plot(coords_1d, 
+     rep(0, length(coords_1d)), 
+     pch = 19, col = "blue", 
+     xlab = "1D MDS Coordinate", ylab = "", 
+     yaxt = "n", 
+     main = "1D Embedding via MDS on Geodesic Distances")
+
+```
+
+
+## Observe how the geodesic distances are preserved in a 1D embedding of 2D points tht forms a 1D manifold.
+
+
+```{r}
+i <- 10
+j <- 40
+h <- 71
+# Create a color vector for all nodes
+node_colors <- rep("green", vcount(g))
+node_colors[i] <- "red"  # highlight node i
+node_colors[j] <- "red"  # highlight node j
+node_colors[h] <- "red" # highlight node h
+
+# Set up side-by-side plotting
+par(mfrow = c(1, 2))
+
+# ---- Plot 1: k-NN graph ----
+plot(g, 
+     layout = data, 
+     vertex.size = 5,
+     vertex.label = NA, 
+     edge.color = "gray", 
+     vertex.color = node_colors,
+     main = "k-NN Graph with Nodes Highlighted")
+
+# ---- Plot 2: 1D MDS embedding ----
+plot(coords_1d, 
+     rep(0, length(coords_1d)), 
+     pch = 19, 
+     col = node_colors,  # apply same coloring
+     xlab = "1D MDS Coordinate", ylab = "", 
+     yaxt = "n", 
+     main = "1D MDS Embedding (Geodesic Distances)")
+
+
+```
+
+
+## Coducting Isomap using dimRed package. Combining all the steps together. 
+
+```{r}
+# Isomap with k-nearest neighbors (e.g., k = 5) and 2D embedding
+isomap_result <- isomap(dist(data), k = 5, ndim = 1)
+
+# Access 2D coordinates
+coords <- scores(isomap_result)
+
+# ---- Plot 1: k-NN graph ----
+plot(g, 
+     layout = data, 
+     vertex.size = 5,
+     vertex.label = NA, 
+     edge.color = "gray", 
+     vertex.color = node_colors,
+     main = "k-NN Graph with Nodes Highlighted")
+
+# ---- Plot 2: 1D Isomap embedding ----
+plot(coords, pch = 19, col = node_colors, main = "Isomap Embedding")
+
+par(mfrow = c(1,1))
+```
+
+
+
+
+## Real world application of Isomap
+
+
+## The cats dataset
+
+
+
+```{r}
+# labels for Black/White/BlackWhite
+cats_black_white_label <- read_csv("~/Sds_333_S25/Project/group.4/project2 files/Untitled spreadsheet - Sheet2.csv") %>% 
+  mutate(labels = `Column 1`) %>% 
+  select(labels)
+
+# Reading in the cats images dataset
+cats_tbl <- read_csv("~/Sds_333_S25/Class/Data/cats2.csv")
+
+image_matrix <- cats_tbl %>%
+dplyr::select (-c(rowid)) %>%
+  as.matrix()
+rownames(image_matrix) <- cats_black_white_label$labels
+dim(image_matrix)
+
+
+```
+
+## Visualization functions
+
+
+```{r}
+plotImage <- function(dat,size=64){
+  imag <- matrix(as.numeric(dat),nrow=size, byrow = T) 
+  image(imag,col=grey.colors(256)) 
+}
+
+plotImage(image_matrix[1,])
+```
+
+
+# Exercises: 
+
+#1 Now let's build the k-nearest neighbor graph where edges are weighted by distances among the cats images. (Remeber that in a small local region, Euclidean (extrinsic) distances between points on a manifold approximately coincide with the geodesic (intrinsic) distances).
+
+```{r}
+# Compute k-nearest neighbors (e.g., k = 5)
+
+
+# Build edges list
+
+
+# Create graph
+
+
+# Optional plot 
+
+
+```
+
+
+
+
+#2 Compute the shortest distance (geodesic) matrix among the points in the weighted knn neighborhood graph using Dijkstra's algorithm. 
+
+
+```{r}
+# Compute Euclidean edge weights
+
+
+# Create weighted graph
+
+
+# Compute shortest paths (geodesic distance matrix)
+
+
+# Visualize geodesic distance matrix optional
+
+
+```
+
+
+
+#3 Now apply classical Multidimensional Scaling to embed the datapoints into a 2D line graph that preserves the intrinsic (geodesic) distances among the points. Call it "mds_2d"
+
+```{r}
+# Classical MDS to 2D
+
+
+```
+
+
+
+#4 Observe how the geodesic distances are preserved in a 2D embedding of 4096D points that likely forms a 2D manifold.
+
+```{r}
+# Classical MDS to 2D
+coords_2d <- mds_2d$points
+cat_labels <- as.factor(cats_black_white_label$labels)
+
+# Plot 2D MDS embedding
+plot(coords_1d[,1], coords_1d[,2],
+     pch = 19, col = as.numeric(cat_labels),
+     xlab = "MDS Dimension 1", ylab = "MDS Dimension 2",
+     main = "2D MDS Embedding from Geodesic Distances")
+legend("topright", legend = levels(cat_labels),
+       col = 1:length(levels(cat_labels)), pch = 19)
+```
+
+
+
+#5 Try out different values for k and see how it changes the plot for first two dimensions. 
+
+
+
+```{r}
+# Isomap with k-nearest neighbors (e.g., k = 5) and 2D embedding
+num_neighbors = 
+cats_isomap_result <- isomap(dist(image_matrix), k = num_neighbors, ndim = 10)
+
+```
+
+
+```{r}
+# visualizing the first 2 dimensions 
+labels <- as.factor(cats_black_white_label$labels)
+
+# Get coordinates
+coords <- scores(cats_isomap_result)
+
+# Plot and color by label
+plot(coords[,1], coords[,2],
+     col = as.numeric(labels),
+     pch = 19,
+     xlab = "Isomap Dim 1", ylab = "Isomap Dim 2",
+     main = "Isomap Embedding Colored by Cat Color Label")
+legend("topright", legend = levels(labels),
+       col = 1:length(levels(labels)), pch = 19)
+
+
+```
+
+```{r}
+# Compute eigenvalues from the coordinates
+coords <- scores(cats_isomap_result)
+eig_vals <- apply(coords^2, 2, var)
+
+# Calculate proportion of variance explained
+prop_var <- eig_vals / sum(eig_vals)
+cumsum_var <- cumsum(prop_var)
+
+# Print
+data.frame(Dimension = 1:length(eig_vals),
+           Eigenvalue = eig_vals,
+           VarianceExplained = round(prop_var, 3),
+           Cumulative = round(cumsum_var, 3))
+
+```
+
+```{r}
+# scree plot of variance explained 
+barplot(prop_var[1:10], names.arg = 1:10,
+        main = "Variance Explained by Isomap Dimensions",
+        xlab = "Isomap Dimension", ylab = "Proportion of Variance")
+
+```
+
+#5 Think about why different values of k (number of nearest neighbors) affect the variance explained by different dimensions.
+
+
+
+## Extra 
+
+## Understanding Multidimensional Scaling
+
+
+## Compute the Gram matrix (inner product matrix) using double-centering
+
+```{r}
+# Squared distance matrix
+D2 <- D_geo^2
+
+# Centering matrix J
+n <- nrow(D2)
+I <- diag(n)
+One <- matrix(1, n, n)
+J <- I - One / n
+
+# Compute Gram matrix B = -0.5 * J D^2 J
+B <- -0.5 * J %*% D2 %*% J
+
+```
+
+
+## Perform eigen decomposition on the Gram matrix
+
+```{r}
+eig <- eigen(B)
+values <- eig$values
+vectors <- eig$vectors
+```
+
+
+## Construct the low-dimensional embedding
+
+```{r}
+# Keep only positive eigenvalues
+L <- diag(sqrt(values))
+V <- vectors
+
+# Final coordinates in 2D
+X2D <- V[, 1:2] %*% sqrt(values[1:2])
+```
+
+## Plot the 2D embedding
+
+```{r}
+plot(X2D, col = node_colors, rep(0, length(X2D)), pch = 19)
+```
+
+
+
+
+
+
+

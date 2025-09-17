@@ -1,0 +1,531 @@
+---
+title: "Hierarchical clustering: Movies examples"
+author: "Jaime Davila"
+date: "2/14/2025"
+output:
+  pdf_document: default
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+```{r setup, echo=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message=FALSE)
+```
+
+
+```{r message=FALSE}
+library(tidyverse)
+library(factoextra)
+library(dslabs)
+library(pheatmap)
+```
+
+# Going to the movies
+
+The following set of exercises is adapted from [Clustering ](http://rafalab.dfci.harvard.edu/dsbook-part-2/ml/clustering.html).
+
+
+We will be working with the `movielens` dataset from the `dslabs` library. Notice we transform it into a tibble `movielens_tbl` early on
+
+```{r}
+data("movielens")
+dim(movielens)
+head(movielens)
+movielens_tbl <- as_tibble(movielens)
+```
+
+This dataset contains about 100,000 observations corresponding to ratings of different movies. You can see the description of the variables for this dataset using ?movielens. Notice that `movielens_tbl` is a pretty long tibble, however we would like to transform into a wider form, where rows correspond to movies and columns will correspond to the ratings given by each user.
+
+We will start by pulling the ids from the top-50 most rated movies, and the top-50 users that have rated the most movies out of this datset
+
+
+```{r}
+top_movies <- movielens_tbl |>
+  count(movieId) |>
+  slice_max(n=50, order_by=n, with_ties=FALSE)|> 
+  pull(movieId)
+length(top_movies)
+
+top_users <- movielens |> 
+  filter(movieId %in% top_movies) |> 
+  count(userId) |> 
+  slice_max(n=50, order_by=n, with_ties = FALSE)|> 
+  pull(userId)
+length(top_users)
+```
+
+Now we will build a matrix corresponding to the ratings of the top-50 most rated movies by the top-50 most active users:
+
+
+```{r}
+movie_mat <- movielens |> 
+  filter(movieId %in% top_movies) |>
+  filter(userId %in% top_users) |>
+  select(title, userId, rating) |>
+  pivot_wider(names_from = userId, values_from = rating) |>
+  column_to_rownames("title") |>
+  as.matrix()
+
+rownames(movie_mat) <- str_remove(rownames(movie_mat), ": Episode") |>  
+  str_trunc(20, ellipsis="")
+```
+
+```{r}
+dim(movie_mat)
+```
+
+Before proceed let's notice that we can use the baseR functions `mean` and `hist` on a matrix with the usual meaning. Notice that in our matrix we have lots of `NA`s so we have to use the option `na.rm=TRUE` in our `mean` function.
+
+
+```{r}
+mean(movie_mat, na.rm=TRUE)
+hist(movie_mat)
+```
+
+Let's notice the average rating is about 3.9, and the distribution is skewed to the right, meaning most people in this dataset like these movies (very few values below 3)
+
+1
+
+a. Calculate and visualize the euclidean distance across the elements from `movie_mat`. What does this visualization tell you about  movies like "Titanic" and "Ace Ventura"? Compare the ratings (mean & histogram) of "Ace Ventura" (in our dataset the movie name is "Ace Ventura: Pet Det") and "Titanic" with our mean and histogram across all of our dataset
+
+```{r}
+d <- get_dist(movie_mat, method = "euclidean")
+fviz_dist(d, lab_size = 8)
+```
+
+
+```{r}
+mean(movie_mat["Titanic", ], na.rm = TRUE)
+hist(movie_mat["Titanic", ])
+
+mean(movie_mat["Ace Ventura: Pet Det", ], na.rm = TRUE)
+hist(movie_mat["Ace Ventura: Pet Det", ])
+
+mean(movie_mat, na.rm = TRUE)
+hist(movie_mat)
+```
+
+**Ans: From the heatmap of the euclidean distance we can see that there is a small group of movies like Tinanic and Ace Ventura have higer euclidean distance compared to other movies. The average rating of Titanic is 3.2 and that of Ace Ventura is 2.7 and ttheir histogram of rating values are much more spread out compred to the histogram of ratings of all movies in our dataset which is left skewed. The average rating of all movies (3.89) in our dataset is quite higher than the selected two movies. Overall, this suggests viewers have mixed feelings about these two movies.**  
+
+b. Do hierarchical clustering with the default settings and visualize your results using `fviz_dend`.
+
+```{r}
+movie_default <- hclust(d)
+
+fviz_dend(movie_default)
+```
+
+
+c. Try hierarchical clustering using the "average" and the "single" method and plot the resulting dendrograms. Which of the 3 methods ("complete", the default from 3b, "single", or "average") produces the best results? Justify your answer. Make sure to use the cophenetic distance in your justification
+
+
+```{r}
+# Cophenetic distance using default method
+cor(d, cophenetic(movie_default))
+```
+
+
+
+```{r}
+movie_avg <- hclust(d, method = "average")
+
+fviz_dend(movie_avg)
+
+# Cophenetic distance using method = "average"
+cor(d, cophenetic(movie_avg))
+```
+
+
+```{r}
+movie_single <- hclust(d, method = "single")
+
+fviz_dend(movie_single)
+
+# Cophenetic distance using method = "single"
+cor(d, cophenetic(movie_single))
+```
+
+
+**Ans: The average linkage method produces the best results since it has the highest cophenetic correlation (0.7237), meaning it best preserves the original distance structure. The single linkage method (correlation: 0.66), while better than complete linkage (correlation: 0.72), is still lower than average linkage. Thus, the average method is the best choice based on the cophenetic correlation.**
+
+
+2. For the following exercise we will settle on using hierarchical clustering using the euclidean distance and the "average" method
+
+a. Experiment dividing your cluster into different number of clusters (try between 5 and 10 clusters) and plot the results using `fviz_dend`. Select a number a cluster you consider appropriate and explain your choice using your movie knowledge. 
+
+```{r}
+fviz_dend(movie_avg,k=5,
+          cex =0.5,
+          color_labels_by_k =TRUE,
+          horiz = TRUE,
+          rect=TRUE)
+
+fviz_dend(movie_avg,k=6,
+          cex =0.5,
+          color_labels_by_k =TRUE,
+          horiz = TRUE,
+          rect=TRUE)
+
+fviz_dend(movie_avg,k=7,
+          cex =0.5,
+          color_labels_by_k =TRUE,
+          horiz = TRUE,
+          rect=TRUE)
+
+fviz_dend(movie_avg,k=8,
+          cex =0.5,
+          color_labels_by_k =TRUE,
+          horiz = TRUE,
+          rect=TRUE)
+
+fviz_dend(movie_avg,k=9,
+          cex =0.5,
+          color_labels_by_k =TRUE,
+          horiz = TRUE,
+          rect=TRUE)
+
+fviz_dend(movie_avg,k=10,
+          cex =0.5,
+          color_labels_by_k =TRUE,
+          horiz = TRUE,
+          rect=TRUE)
+```
+
+
+**Ans: I think the clustering with 8 clusters is pretty good. But we need to know what we want to group the movies based on to be able to say how well the clustering is. If we are trying to get the clustering to cluster movies based user preferences then the 8 clusters' clustering is pretty good since it captures. It kind of seperates movies based on the emotions they enduce which causes user preferences. But if we are trying to get the clustering to cluster the movies based on genres then it really bad.**
+
+b. Create a heatmap and divide into the same number of groups as 2a. 
+Pick a couple of clusters and describe them  using your movie knowledge 
+
+```{r}
+num_clusters <- 8  
+
+pheatmap(movie_mat, 
+         clustering_distance_rows = "euclidean",  
+         clustering_method = "average",           
+         cutree_rows = num_clusters,            
+         cluster_cols = FALSE,                    
+         show_rownames = TRUE,
+         fontsize = 6,
+         main = "Movie Heatmap with Clusters")
+
+
+```
+
+
+**Ans: Cluster 1 Movies: Shrek, Toy Story, Aladdin, The Lion King, Beauty and the Beast are a mix of animated and family-friendly films with humor, adventure, and strong storytelling, appealing to broad audiences. Cluster 2 Movies: The Matrix, Star Wars, Terminator 2, Jurassic Park, Back to the Future etc. are futuristic or sci-fi elements, often with groundbreaking special effects and action-driven narratives.**
+
+# Textbook problems (ISLR)
+
+3. (**ISLR 12.6.2, modified**) Suppose that we have four observations, for which we compute a dissimilarity matrix, given by
+
+```
+1    0.3  0.4  0.7
+0.3    1  0.5  0.8
+0.4  0.5       0.45
+0.7  0.8  0.45     
+```
+
+For instance, the dissimilarity between the first and second observations is 0.3, and the dissimilarity between the second and fourth observations is 0.8.
+
+a. On the basis of this dissimilarity matrix, sketch the dendrogram that results from hierarchically clustering these four observations using complete linkage. To sketch your dendrogram in markdown, feel free to use parenthesis notation. For example ((A,B),(C,D)) represents the tree for which:
+
+* The leafs A and B share a common ancestor
+* The leafs C and D share a common ancestor
+* There is a common ancestor between the subtree that contains A and B (A,B) and the subtree that contains C and D (C,D)
+
+```{r}
+d_matrix <- matrix(c(
+  0,   0.3, 0.4, 0.7,
+  0.3, 0,   0.5, 0.8,
+  0.4, 0.5, 0,   0.45,
+  0.7, 0.8, 0.45, 0
+), nrow = 4, ncol = 4, byrow = TRUE)
+
+dimnames(d_matrix) <- list(c("A", "B", "C", "D"), c("A", "B", "C", "D"))
+
+d_matrix
+
+```
+
+**Ans: 0.8 -> (0.3 -> (A, B), 0.45 -> (C, D)). Start with 4 clusters A,B,C, and D. A is closest to B so (A,B) becomes a cluster. Then the complete distance between (A,B) and C is higher than complete distance with D. So (C,D) becomes the next cluster. Then the two cluster merges to make the full dendogram ((A,B),(C,D)).**
+
+b. Repeat (a), this time using single linkage clustering.
+
+```{r}
+d_matrix
+```
+
+
+**Ans: 0.45 -> (D, (0.4 -> (C, 0.3 -> (A, B))). Starts with 4 clusters A,B,C, and D. A is closest to B so (A,B) becomes a cluster. Then the single distance between (A,B) and C is lower than single distance with D. So ((A,B),C) becomes the next cluster. And finally D merges and becomes (((A,B), C), D).**
+
+c. Suppose that we cut the dendrogram obtained in (a) such that two clusters result. Which observations are in each cluster?
+
+
+```{r}
+d_matrix
+```
+
+**Ans: The two resulting clusters are: (A,B) and (C,D).**
+
+d. Suppose that we cut the dendrogram obtained in (b) such that two clusters result. Which observations are in each cluster?
+
+```{r}
+d_matrix
+```
+
+**Ans: The resulting two clusters are: (A, B, C) and (D).**
+
+e. It is mentioned in the chapter that at each fusion in the dendrogram, the position of the two clusters being fused can be swapped without changing the meaning of the dendrogram. Draw a dendrogram that is equivalent to the dendrogram in (a), for which two or more of the leaves are repositioned, but for which the meaning of the dendrogram is the same.
+
+**Ans: 0.8 -> (0.45 -> (D, C), 0.3 -> (B, A))**
+
+4. (**ISLR 12.6.9**)
+
+Consider the `USArrests` data. Notice you can find information about this dataset using ?USArrests
+
+
+```{r}
+head(USArrests)
+```
+
+We will now perform hierarchical clustering on the states.
+
+a. Using hierarchical clustering with complete linkage and Euclidean distance, cluster the states.
+
+```{r}
+arrests_mat <- as.matrix(USArrests)
+
+arrests_d <- get_dist(arrests_mat, method = "euclidean")
+fviz_dist(arrests_d)
+
+arrests_h <- hclust(arrests_d, method = "complete")
+
+fviz_dend(arrests_h)
+
+```
+
+
+
+
+b. Cut the dendrogram at a height that results in three distinct clusters. Which states belong to which clusters?
+
+```{r}
+fviz_dend(arrests_h,k=3,
+          cex =0.5,
+          color_labels_by_k =TRUE,
+          horiz = TRUE,
+          rect=TRUE)
+```
+
+```{r}
+num_clusters <- 3  
+
+pheatmap(arrests_mat, 
+         clustering_distance_rows = "euclidean",  
+         clustering_method = "complete",           
+         cutree_rows = num_clusters,            
+         cluster_cols = FALSE,                    
+         show_rownames = TRUE,
+         fontsize = 6)
+```
+
+
+```{r}
+clusters <- cutree(arrests_h, k = 3)
+
+print(split(names(clusters), clusters))
+```
+
+
+
+c. Hierarchically cluster the states using complete linkage and Euclidean distance, after scaling the variables to have standard deviation one (You may use the command `scale` from baseR)
+
+```{r}
+arrests_mat_scaled <- scale(arrests_mat)
+
+arrests_d_scaled <- get_dist(arrests_mat_scaled, method = "euclidean")
+fviz_dist(arrests_d_scaled)
+
+arrests_h_scaled <- hclust(arrests_d_scaled, method = "complete")
+
+fviz_dend(arrests_h_scaled, k = 3, horiz = TRUE)
+```
+
+
+
+d. What effect does scaling the variables have on the hierarchical clustering obtained? In your opinion, should the variables be scaled before the inter-observation dissimilarities are computed?
+Provide a justification for your answer.
+
+```{r}
+clusters_scaled <- cutree(arrests_h_scaled, k = 3)
+print(split(names(clusters_scaled), clusters_scaled))
+print(split(names(clusters), clusters))
+
+```
+
+```{r}
+fviz_dend(arrests_h_scaled, k = 3, horiz = TRUE)
+fviz_dend(arrests_h, k = 3, horiz = TRUE)
+```
+
+```{r}
+num_clusters <- 3  
+
+pheatmap(arrests_mat_scaled, 
+         clustering_distance_rows = "euclidean",  
+         clustering_method = "complete",           
+         cutree_rows = num_clusters,            
+         cluster_cols = FALSE,                    
+         show_rownames = TRUE,
+         fontsize = 6)
+```
+
+
+**Ans: As we can see in the two dendograms the scaling of the variable values have definitely changed which states are clustered together. For instance when clustered without scaling the first group with Alabama had 16 states in that cluster but afeter scaling the cluster with Alabama has only 8 states. Without scaling the clustering takes into account the magnitude of the variables. For instance the murder variable will have least effect among all the variables when clustering without scaling. But when scaled each variable will have equal effect on the cluster formation and the clusters will be better at detecting underlying patterns among states as opposed to being influenced by some particular variable with high values. Therefore, I think the variables should be scaled before the inter-observation dissimilarities are computed**
+
+# Distance distortion in hierarchical clustering
+
+For exercises 5 and 6, use hierarchical clustering with the Euclidean distance and the average method
+
+5) 
+
+a. Generate 10 equally spaced from the unit circumference in the plane and calculate and plot their distance matrix. 
+
+```{r}
+theta <- seq(0, 2*pi, length.out = 11)[-11]
+points <- cbind(cos(theta), sin(theta)) 
+point_names <- paste0("Point", 1:10)
+rownames(points) <- point_names
+
+dist_points <- get_dist(points, method = "euclidean")
+
+fviz_dist(dist_points, order = FALSE)
+
+```
+
+
+```{r}
+library(ggplot2)
+points_df <- as.data.frame(points) %>% 
+  mutate(points = point_names)
+
+ggplot(points_df, aes(x = V1, y = V2)) +
+  geom_point() +
+  geom_text(aes(label = points), size = 3) +
+  xlab("X") + ylab("Y") +
+  ggtitle("10 equally spaced Points on the Unit Circle") 
+```
+
+
+
+b. Plot the dendrogram from hierarchical clustering these 10 points
+
+```{r}
+points_h <- hclust(dist_points, method = "average")
+
+fviz_dend(points_h, cex = 0.5)
+```
+
+
+c. Does the cophenetic distance in the cluster preserve the distance in the original space? What pair of points are most "distorted" when projected into the dendrogram?
+
+```{r}
+dist_vector <- as.vector(dist_points)
+cophenetic_vector <- as.vector(cophenetic(points_h))
+
+point_combinations <- combn(point_names, 2, FUN = function(x) paste(x, collapse = " - "))
+
+
+plot(dist_vector, cophenetic_vector, 
+     col = "red", 
+     pch = 16, 
+     xlab = "Original Distances", 
+     ylab = "Cophenetic Distances", 
+     main = "Cophenetic vs. Original Distances")
+text(dist_vector, cophenetic_vector, labels = point_combinations, pos = 4, cex = 0.7)
+```
+
+
+```{r}
+cor(dist_points, cophenetic(points_h))
+```
+
+
+```{r}
+distance_diff <- cophenetic(points_h) - dist_points
+
+print(max(max(distance_diff), abs(min(distance_diff))))
+```
+
+**Ans: The correlation of 0.65 between euclidean distance and cophenetic distance means the original distance is not preserved that well. And looking at the scatter plot we can see the points does not have any linear upward pattern (slope 1) means the distance is distorted a lot. The most distorted pair of points are (2,3) and (7,8) when projected into the dendogram.** 
+
+6)
+
+a. Generate 10 equally spaced from the unit circumference in the plane and add 10 equally spaced points in vertical line from (0,-1) to (0,-3). Plot these points in R (they should look like a lollipop).
+
+```{r}
+theta <- seq(0, 2*pi, length.out = 11)[-11]  
+circle_points <- data.frame(x = cos(theta), y = sin(theta))
+
+
+line_y <- seq(-1, -3, length.out = 10)
+line_points <- data.frame(x = rep(0, 10), y = line_y) 
+
+
+all_points <- rbind(circle_points, line_points)
+
+
+ggplot(all_points, aes(x, y)) +
+  geom_point(size = 3) +
+  xlab("X") + ylab("Y") 
+
+```
+
+
+b. Calculate their and plot their distance matrix. 
+
+```{r}
+point_names <- paste0("Point ", 1:20)
+lollipop_points_mat <- as.matrix(all_points)
+rownames(lollipop_points_mat) <- point_names
+
+dist_all_points <- get_dist(lollipop_points_mat, method = "euclidean")
+
+fviz_dist(dist_all_points, order = FALSE)
+```
+
+
+c. Plot the dendrogram from hierarchical clustering. 
+
+```{r}
+all_points_h <- hclust(dist_all_points, method = "average")
+
+fviz_dend(all_points_h, cex = 0.5)
+```
+
+
+
+d. Does the cophenetic distance in the cluster preserve the distance in the original space? What pair of points are most "distorted" when projected into the dendrogram?
+
+```{r}
+cor(dist_all_points, cophenetic(all_points_h))
+```
+
+```{r}
+cophenetic((all_points_h)) - dist_all_points
+```
+
+
+```{r}
+distance_diff <- cophenetic(all_points_h) - dist_all_points
+
+max_diff <- max(max(distance_diff), abs(min(distance_diff)))
+
+print(max_diff)
+```
+
+ 
+**Ans: A correlation of 0.73 implies that the distance is beetter preserved for this set of points compared to the 10 equally spaced points on unit circle. The clustering was able to detect the two different clussters made up of points on unit circle and the points on the vertical y-axis. But the within each of these two bigger clusters the distance is still highly distorted. The most distorted pair of points are (20,3), (2,4), and (7,8), (9,10) when projected into the dendogram.**
+
+

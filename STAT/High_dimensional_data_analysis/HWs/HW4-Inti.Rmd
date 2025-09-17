@@ -1,0 +1,237 @@
+---
+title: "Linear Transformations/Matrix Multiplication"
+author: "Jaime Davila"
+date: "2/28/25"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,cache = TRUE)
+```
+
+# Intro
+
+Let's start by reusing some code from last time:
+
+```{r}
+(id.matrix <- matrix (c(1,0,0,1), nrow=2))
+
+create_grid <- function(n) {
+ expand.grid(x=seq(0, 1, 1/n), y=seq(0,1, 1/n)) |>
+    as.matrix()
+}
+```
+
+And to notice that we can use it in the following way to see what is the image of the unit square under the transformation associated with `id.matrix`
+
+```{r }
+unit_grid <- create_grid(10)
+
+plot(t(id.matrix %*% t(unit_grid)))
+```
+
+
+# Your turn
+
+
+1. Let's consider the following matrix
+
+```{r}
+matrix.2 <-  matrix (c(5,0,0,5), nrow=2)
+```
+
+Plot the image of the unit grid under the linear transformation associated with this matrix. What do you think this transformation is doing?
+
+```{r}
+plot(t(matrix.2 %*% t(unit_grid)))
+```
+
+**Ans: The transformation is stretching the points of the grid by a factor of 5. So what was (1,0) is not (5,0), and what was (0,1) is not (0,5).**
+
+2. Consider the following matrix:
+
+```{r}
+matrix.3 <-  matrix (c(5,0,0,3), nrow=2)
+```
+
+What does the linear transformation associated with this matrix do?
+
+```{r}
+plot(t(matrix.3 %*% t(unit_grid)))
+```
+
+**Ans: This transformation is stretching the points on x-axis by a factor of 5 and points on y-axis by a factor of 3 of the grid. So what was (1,0) is not (5,0), and what was (0,1) is not (0,3).**
+
+3. Describe what the linear transformations associated with the following matrices do:
+
+a. 
+```{r}
+matrix.4 <-  matrix (c(1,0,0,0), nrow=2)
+```
+
+
+```{r}
+plot(t(matrix.4 %*% t(unit_grid)))
+```
+
+
+**Ans: This transformation is from a two dimensional point to a one dimensional point. It takes in x and y coordinates and returns just the (x,0). That is why the plotted transformed grid is just points on the x-axis.**
+
+b. Try different values of `theta` in $0\dots, 2\pi$ for the following matrix
+
+```{r}
+theta=2*pi/6
+(matrix.5 = matrix (c(cos(theta),sin(theta),-sin(theta),cos(theta)), nrow=2))
+```
+
+
+```{r}
+plot(t(matrix.5 %*% t(unit_grid)))
+```
+
+**Ans: This matrix rotates the points on of the grid by angle of $\frac{2\times \pi}{6}$ radian clock wise. So this matrix.5 is a rotation matrix.**
+
+c. 
+
+```{r}
+matrix.6 <- matrix.2 %*% matrix.5
+```
+
+
+```{r}
+plot(t(matrix.6 %*% t(unit_grid)))
+```
+
+
+**Ans: The matrix.6 is a product of matrix.2 and matrix.5. The effect of this matrix on the unit grid is the same as the effect of matrix.5 and then matrix.2. So combined effect is rotation by angle $\frac{2\times \pi}{6}$ radian and then stretching by factor 5 for both x and y axis.**
+
+4. The inverse of a matrix $\mathbf{A}$ is the matrix $\mathbf{A^{-1}}$ such that $A \times A^{-1}= \mathbf{I}$ ($\mathbf{I}$ is the identity matrix). In R you can find the inverse matrix by using the command `solve`. Find and interpret the inverse matrices for
+
+a) `matrix.2`
+
+```{r}
+inv_matrix.2 <- solve(matrix.2)
+plot(t(inv_matrix.2 %*% t(unit_grid)))
+```
+
+**Ans: The inverse matrix of matrix.2 shrinks the values for x and y axis by a factor of $\frac{1}{5}$. Which is the opposite/inverse of what matrix.2 does.**
+
+b) `matrix.3`
+
+```{r}
+inv_matrix.3 <- solve(matrix.3)
+plot(t(inv_matrix.3 %*% t(unit_grid)))
+```
+
+
+**Ans: Similarly the inverse of matrix.3 shrinks the values for x-axis by a factor of $\frac{1}{5}$ and values for y-axis by a factor of $\frac{1}{3}$. Which is the opposite/inverse of what matrix.3 does.**
+
+c) `matrix.5`
+
+```{r}
+par(mfrow = c(1,2))
+inv_matrix.5 <- solve(matrix.5)
+plot(t(matrix.5 %*% t(unit_grid)))
+plot(t(inv_matrix.5 %*% t(unit_grid)))
+par(mfrow = c(1,1))
+```
+
+**Ans: Similarly the inverse of matrix.5 rotates the unit grid by $\frac{2\times \pi}{6}$ radians anti-clockwise. Which is the opposite/inverse of what matrix.5 does.**
+
+d) `matrix.6`
+
+```{r}
+par(mfrow = c(1,2))
+inv_matrix.6 <- solve(matrix.6)
+plot(t(matrix.6 %*% t(unit_grid)))
+plot(t(inv_matrix.6 %*% t(unit_grid)))
+par(mfrow = c(1,1))
+```
+
+**Ans: Similarly the inverse of matrix.6 on the unit grid is the inverse effect of matrix.5 and then inverse effect of matrix.2. So combined effect is anti-clockwise rotation by angle $\frac{2\times \pi}{6}$ radian and then shrinking by factor $\frac{1}{5}$ for both x and y axis.**
+
+
+e) Try finding the inverse matrix for `matrix.4`. Did you run into any problems? Explain why.
+
+```{r}
+print(matrix.4)
+```
+
+
+```{r, eval=FALSE}
+solve(matrix.4)
+```
+
+**Ans: The matrix.4 is nor invertible which is why we ran into an error when trying to find it's inverse. When the determinant is zero of a matrix then it is not invertible. So the inverse of matrix.4 does not exist.**
+
+5. Take one homework problem from this class that you worked on this semester that you struggled to understand and solve, and explain how the struggle itself was valuable.  In the context of this question, describe the struggle and how you overcame the struggle. You might also discuss whether struggling built aspects of character in you (e.g. endurance, self-confidence, competence to solve new problems) and how these virtues might benefit you in later ventures.
+
+
+**Ans: The HW3 question 4 was kind of tricky for me. I knew the computation behind normalizing the pixel values but when plotted I could not distinguish what exactly was different between the normalized and not normalized pictures. Then I went on to the internet and started searching articles about how normalization affects an image in terms of it's appearance. After few short reads on the internet and videoas I understood that normalization does not always create a visually obvious difference, especially when the original pixel values are already within a small range. Instead, it standardizes the pixel intensity distribution, making the image more suitable for differentiating based on structural differences as opposed to pixel intensity. The struggle was valuable because it forced me to dig deeper into the purpose rather than just the mechanics of normalization. This experience built my patience and analytical thinking, as I had to approach the problem from multiple angles before arriving at the correct understanding.**
+
+\newpage
+
+6. Using this .Rmd create a one page summary of the concepts that we covered in the first 4 weeks of class (you don't need to summarize the content in Code>1_R or the content from the project ). Just make sure your summary has full sentences as well as some R code. Be mindful of the one page limit, and use default font sizes, margins, and spacing.
+
+
+# **Summary of First Four Weeks of Class**
+
+## **Hierarchical Clustering**
+- Explored clustering techniques.
+- Created **distance matrices** using Euclidean distance.
+- Used **hierarchical clustering** and visualized dendrograms.
+- Compared clustering methods: **single, complete, and average linkage**.
+- Evaluated cluster quality using **cophenetic correlation** to determine the best method.
+
+```{r, eval=FALSE}
+library(factoextra)
+
+d <- dist(movie_mat, method = "euclidean")
+
+movie_clusters <- hclust(d, method = "average")
+
+fviz_dend(movie_clusters, k = 5, rect = TRUE)
+
+```
+
+
+## **K-Means and K-Medoids Clustering**
+- Used **k-means** and **k-medoids** clustering techniques to cluster images.
+- Explored the impact of **normalization** in clustering results.
+- Determined the optimal number of clusters using **elbow method (WSS)** and **silhouette scores**.
+- Compared centroids and medoids to understand how clusters form in high-dimensional spaces.
+
+```{r, eval=FALSE}
+library(cluster)
+
+set.seed(2045)
+cat_clusters <- kmeans(image_matrix, centers = 2, iter.max = 50, nstart = 25)
+
+fviz_nbclust(image_matrix, kmeans, method = "wss")
+
+```
+
+
+
+## **Linear Transformations**
+- Explored how **linear transformations** affect a vector using matrices.
+- Studied **scaling transformations**, where a matrix stretches or shrinks points along different axes.
+- Analyzed the effect of **rotation matrices**, which rotate points by a specified angle.
+- Observed the **composition of transformations**, showing that applying one transformation after another produces a combined effect.
+- Investigated the effect of **inverse matrices**.
+- Performed **single value decomposition**.
+
+
+```{r, eval=FALSE}
+t(matrix)
+solve(matrix)
+svd(matrix)
+plot(t(matrix1 %*% t(matrix2)))
+```
+
+
