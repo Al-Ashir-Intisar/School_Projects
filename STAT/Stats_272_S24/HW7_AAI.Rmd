@@ -1,0 +1,252 @@
+---
+title: 'Stat 272: Homework #7'
+subtitle: 'Al Ashir Intisar'
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  html_document: default
+  word_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+For homework assignments, you only need to submit your knitted pdf file to Moodle, but be sure your RMarkdown file is saved and accessible in your Submit folder on the RStudio server. Be sure to include all of your R code, in addition to your output, plots, and written responses. Read each question carefully, and be sure your written responses are thorough, succinct, and clear, with careful use of statistical language. Finally, be sure to check your assignment prior to submission; don't just assume it knitted okay.
+
+```{r, include=FALSE}
+library(Stat2Data)   # contains data from textbook
+library(mosaic)      # for favstats()
+library(ggResidpanel)
+library(tidyverse)   # ALWAYS load last
+```
+
+## 1) Guided Exercise 9.43: THC vs. prochlorperazine (p.450)
+
+Use our book for the scenario description, but answer the questions as written below.
+
+```{r}
+data("ChemoTHC")
+chemo <- as_tibble(ChemoTHC)
+chemo
+
+# Build data set for chemo example
+chemo_full <- tibble(treatment = c(rep("THC", 79), 
+                                   rep("Prochlorperazine", 78)),
+  effectiveYN = c(rep("Yes", 36), rep("No", 43), 
+                rep("Yes", 16), rep("No", 62))) %>%
+  mutate(thc = ifelse(treatment == "THC", 1, 0),
+         effective = ifelse(effectiveYN == "Yes", 1, 0))
+chemo_full
+
+two_by_two <- table(chemo_full$treatment, chemo_full$effectiveYN)
+two_by_two
+addmargins(two_by_two)
+```
+
+**Note that (a)-(e) were originally part of HW6**
+
+a)  Find the proportion of patients in each of the sample groups for which the treatment was effective.
+
+```{r}
+two_by_two %>% 
+  proportions(1) %>% 
+  addmargins(2)
+```
+
+
+**Ans: \textcolor{blue}{For THC group proportion of patients with effective treatment was 0.4556962 and for Prochlorperazine group it was 0.2051282.}**
+
+b)  Fit a binary logistic regression model to predict `effectiveYN` using `treatment` as a binary predictor. Give the logit form of the fitted model.
+
+```{r}
+model1_data <- chemo_full %>% 
+  mutate(treatment = as.factor(treatment))
+
+
+model1 <- glm(effective ~ treatment, data = model1_data, family = binomial(link = "logit"))
+summary(model1)
+```
+
+**Ans: \textcolor{blue}{The $log(oddsEffective) = -1.3545$ when the treatment is Prochlorperazine. And $log(oddsEffective) = -1.3545 + 1.1769$ when treatment is THC.}**
+
+c)  Use the model in (b) to predict the odds and the probability of effectiveness for each of the two drugs. Compare predicted proportions to the sample proportions in (a).
+
+**Ans: \textcolor{blue}{For Prochlorperazine: the odds are 0.2580763003 and probality is 0.2051356506. For THC: the odds are 0.8372772674 and probality is 0.4557163376. The predicted proportions are same as the sample proportions in (a).}**
+
+d)  Find the odds ratio comparing the effectiveness of THC to prochlorperazine based on the binary logistic regression model from (b). Interpret this odds ratio in context.
+
+**Ans: \textcolor{blue}{The odds ratio comparing the effectiveness of THC to prochlorperazine is approximately 3.243. This means that the odds of effectiveness for the treatment with THC are about 3.243 times higher compared to the odds of effectiveness for the treatment with prochlorperazine.}**
+
+e)  Illustrate the relationship between treatment and effectiveness with a segmented bar chart.
+
+```{r}
+ggplot(chemo_full, aes(treatment, fill = effectiveYN)) +
+  geom_bar(position = "fill") +
+  labs(title = "Effectivness by Treatments", fill = "Treatment \nEffective?")
+  
+```
+
+
+f)  Compare a confidence interval based on a profile likelihood (using confint()) to a confidence interval based on the Wald statistic, and interpret the profile likelihood interval in context.
+
+```{r}
+summary(model1)
+
+margin_error_intercept = 1.96 * 0.2804
+upper_intecept = -1.3545 + margin_error_intercept
+lower_intercept = -1.3545 - margin_error_intercept
+margin_error_intercept
+upper_intecept
+lower_intercept
+
+margin_error_slope = 1.96 * 0.3601
+upper_slope = 1.1769 - margin_error_slope
+lower_slope = 1.1769 + margin_error_slope
+margin_error_slope
+upper_slope
+lower_slope
+
+
+confint(model1)
+```
+
+
+**Ans: \textcolor{blue}{Profile likelihood: 95\% confident Intercept is between -1.9379361 to -0.8309937 and Slope is between 0.4851633 to 1.9027114. Wald Statistic: 95\% confident Intercept is between -1.904084 to -0.804916 and Slope is between 0.471104 to 1.882696. Based on profile likelihood confidence interval we are 95\% confident that the odds of prochlorperazine being effective is between 0.1440008466 to 0.4356161994. And the odds of THC being effective is 1.624440258 to 6.704047175 times higher than prochlorperazine.}**
+
+g)  Compare p-values based on the likelihood ratio (drop-in-deviance) test and the Wald test, and state a conclusion based on the drop-in-deviance test in context.
+
+```{r}
+summary(model1)
+
+model1_0 <- glm(effective ~ 1, data = model1_data, family = binomial(link = "logit"))
+
+anova(model1_0, model1, test = "Chisq")
+```
+
+
+**Ans: \textcolor{blue}{The p-value from Wald's test is 0.00108 and from likelihood ratio test is 0.0007566. Both are pretty close. The p-value of 0.0007 which is less than starndard significance threshold 0.05 means that treatment effectiveness is significantly different between the two different treatments.}**
+
+h)  Repeat (g) using a two-sample test of proportions.
+
+```{r}
+prop.test(effectiveYN~treatment, correct = F, data = chemo_full)
+```
+
+**Ans: \textcolor{blue}{The obtained p-value for two-sample test is 0.000852 whihc is still below significance threshold. Therefore, The proportions of effective treatment is significantly different between the two treatment groups.}**
+
+i)  Repeat (g) using a chi-square test. Show how you'd find the chi-square test statistic by hand.
+
+```{r}
+chisq.test(chemo_full$treatment, chemo_full$effectiveYN, correct = F)
+```
+
+**Ans: \textcolor{blue}{The obtained p-value for chi-squared test is 0.000852 whihc is still below significance threshold. Therefore, The proportions of effective treatment is significantly different between the two treatment groups. If we calculated the statistic by hand then it would be $X^2 = \sum{\frac{(O-E)^2}{E}} = \frac{(16 - 25.8343949)^2}{25.8343949} + \frac{(36 - 26.1656051)^2}{26.1656051} + \frac{(62-52.8343949)^2}{52.8343949} + \frac{(43-52.8343949)^2}{52.8343949} =  11.12448482$.}**
+
+
+## 2) Guided Exercises 9.37-9.38: Red states and blue states in 2016 (p.449)
+
+Use our book for the scenario description, but answer the questions as written below.
+
+```{r}
+data("Election16")
+Election16 <- as_tibble(Election16)
+Election16
+```
+
+a)  Find an odds ratio based on the estimated slope from the logistic regression model described in 9.37. Interpret this odds ratio in context.
+
+```{r}
+model2 <- glm(TrumpWin~Income, data = Election16, family = binomial(link = "logit"))
+summary(model2)
+```
+
+
+**Ans: \textcolor{blue}{For 1 dollar decrease in the per capita income of the state the odds of Trump winning goes up by 0.02\% approximately.}**
+
+b)  Find and interpret a 95% confidence interval for the odds ratio in (a).
+
+```{r}
+confint(model2)
+```
+
+**Ans: \textcolor{blue}{We are 95\% confident that the odds of Trump winning goes up by 0.03\% to 0.01\% as per capita imcome of the state goes down by 1 dolar.}**
+
+c)  Run the logistic regression using `IncomeTh` as the predictor of `TrumpWin` as described in 9.38. What changes in your new model compared to your model in (a)? Along those lines, calculate the predicted probability that Trump won Minnesota in 2016 under both models (the one using `Income` and the one using `IncomeTh`). Show your calculations by hand and with R.
+
+```{r}
+Election16 <- Election16 %>% 
+  mutate(IncomeTh = Income/1000)
+
+model2_1000 <- glm(TrumpWin~IncomeTh, data = Election16, family = binomial(link = "logit"))
+summary(model2_1000)
+
+Election16[23,]
+```
+
+
+**Ans: \textcolor{blue}{The only things that change in the new model is the coefficient and SE for the coefficient because essentially we just changed the unit of the predictor. Everything else stays the same in the two models. The predicted probality of Trum winning MN under model2 (Income as predictor $odds = e^{-0.9154764}$) is $\frac{odds\_model2}{1+odds\_model2} =0.2858805049$ and under model2\_1000 (IncomeTh as predictor $odds = e^{-0.91238656}$) is $\frac{odds\_model2\_1000}{1+odds\_model2\_1000} = 0.2865117216$. }**
+
+d)  Find an odds ratio based on the estimated slope from the logistic regression model described in (c). Interpret this odds ratio in context.
+
+**Ans: \textcolor{blue}{As the state per capita income decreases by 1000 dollars the odds of Trump winning increases by 21.7\%.}**
+
+e)  Find and interpret a 95% confidence interval for the odds ratio in (d).
+
+```{r}
+confint(model2_1000)
+```
+
+**Ans: \textcolor{blue}{We are 95\% confident that the odds of Trump winning goes up by 38.2\% to 10.6\%  as state per capita income goes down by 1000 dollars.}**
+
+f)  Produce a conditional density plot relating `TrumpWin` to `IncomeTh`. You should first create a categorical (factor) version of your response indicator variable.
+
+```{r}
+summary(Election16$IncomeTh)
+
+Election16 <- Election16 %>% 
+  mutate(TrumpWin = as.factor(TrumpWin))
+
+ggplot(data = Election16, aes(x = IncomeTh, fill = TrumpWin)) + 
+  geom_density(position = 'fill', alpha = 0.5) 
+```
+
+
+g)  Create an empirical logit plot based on `IncomeTh`. What can you conclude from this plot?
+
+```{r}
+
+ggplot(Election16, aes(x = IncomeTh, y = 11.18186-(0.19668*IncomeTh))) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  xlab("Per capita Income/$1000") + ylab("Empirical logits")
+```
+
+**Ans: \textcolor{blue}{Since the eperical logit plot is perfectly linear we can conclude that the linearity condition is satisfied.}**
+
+h)  [OPTIONAL] Plot a smooth curve representing the logistic regression fit. You should have `IncomeTh` on the x-axis and `Estimated probability that Trump wins` on the y-axis.
+
+```{r}
+Election16$Pred_prob <- predict(model2_1000, Election16, type = "response")
+
+ggplot(Election16, aes(x = IncomeTh, y = Pred_prob)) +
+  geom_point() +
+  geom_smooth() +
+  xlab("Per capita Income/$1000") + ylab("Predicted Probality  of Trump Win")
+
+```
+
+
+i)  Fit a multiple regression model with predictors `IncomeTh`, `HS`, and `Dem.Rep`. First, interpret the coefficient for `Dem.Rep` in context. Second, is this model significantly better than your model with only `IncomeTh`.
+
+**Note: \textcolor{red}{Logistic or linear multiple regression?}**
+
+```{r}
+model3 <- glm(TrumpWin~IncomeTh+HS+`Dem.Rep`, data = Election16, family = binomial(link = "logit"))
+summary(model3)
+
+anova(model2_1000, model3, test = "Chisq")
+```
+
+**Ans: \textcolor{blue}{If the percentage of Democrants in the State is higher by 1\% than percentage of Republicans the odds of Trump winning goes down by around 27\% after accounting for IncomeTh and HS. As we can see from the drop in devience test the extended model is significantly better than the smaller model with just IncomeTh as predictor.}**
+
+

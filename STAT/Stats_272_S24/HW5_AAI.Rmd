@@ -1,0 +1,344 @@
+---
+title: 'Stat 272: Homework #5'
+subtitle: 'Al Ashir Intisar'
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  html_document: default
+  word_document: default
+geometry: "left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm"
+editor_options: 
+  chunk_output_type: console
+---
+
+For homework assignments, you only need to submit your knitted pdf file to Moodle, but be sure your RMarkdown file is saved and accessible in your Submit folder on the RStudio server. Be sure to include all of your R code, in addition to your output, plots, and written responses. Read each question carefully, and be sure your written responses are thorough, succinct, and clear, with careful use of statistical language.  Finally, be sure to check your assignment prior to submission; don't just assume it knitted okay.
+
+```{r, include=FALSE}
+library(Stat2Data)   # contains data from textbook
+library(mosaic)      # for favstats()
+library(car)         # for vif()
+library(GGally)      # for ggpairs()
+library(ggResidpanel) # for resid_panel
+library(tidyverse)   # ALWAYS load last
+```
+
+
+## 1) Virtual Used Car Lot (continued)
+
+In 2015, data from cars being sold in Minnesota on cars.com was randomly sampled to form a Virtual Car Lot of 75 cars representing 3 different models; data can be found at **VirtualCarLot3.csv**.  Age is measured in years, miles are measured in thousands, and price is measured in thousands of dollars.  Please use this data to answer the following questions that continue from HW4:
+
+```{r}
+# Load data for this problem
+carlot <- read_csv("~/Stats 272 S24/Class/Data/VirtualCarLot3.csv")
+```
+
+g)	Using Model G (predicting `price` with `age`, `miles`, and indicator variables for both golf and sonata models), consider a 10-year old Sonata with 75,000 miles. 
+
+    i) Find and interpret an appropriate confidence interval.
+    ii) Find and interpret an appropriate prediction interval.
+    
+```{r}
+#creating indicator variable
+carlot <- carlot %>%
+  mutate(golf = ifelse(model == "Golf", 1, 0),
+  sonata = ifelse(model == "Sonata", 1, 0))
+
+#creating model G
+modelG <- lm(price ~ age + miles + golf + sonata, data = carlot)
+```
+
+
+```{r}
+# intervals 
+predict_at <- tibble(age = 10, miles = 75, sonata = 1, golf = 0)
+
+#confidence
+predict(modelG, new = predict_at, interval = "confidence")
+#prediction
+predict(modelG, new = predict_at, interval = "prediction")
+```
+
+**\textcolor{red}{Note: check is the interpretation is right.}**
+
+* **\textcolor{blue}{i) We are 95\% confidence that the average price of a 10 year old sonata with 75,000 miles is in between \$6936 dollars to \$9279 dollars.}**
+* **\textcolor{blue}{i) We are 95\% confidence that the price of a individual 10 year old sonata with 75,000 miles is in between \$3749 dollars to \$12466 dollars.}**
+
+
+h)	Run Model H, with price as the response and age, miles, accord, and accord-by-age interaction as predictors (where `accord` is 1 if `model` is an accord, and 0 otherwise).
+
+    i) Interpret a 95% confidence interval for miles in context.
+    ii) Interpret the accord-by-age interaction in context.
+    
+```{r}
+#creating indicator variable
+
+carlot <- carlot %>% 
+  mutate(accord = ifelse(model == "Accord", 1, 0))
+
+#creating model H
+modelH <- lm(price ~ age+miles+accord+accord:age, data = carlot)
+summary(modelH)
+
+#confidence interval
+confint(modelH)
+```
+
+
+* **\textcolor{blue}{i) We are 95\% confident that additional 1000 miles driven will reduce the predicted price of the car by \$74 to \$32 dollars after accounting for age and model.}**
+* **\textcolor{blue}{ii) When the car is accord one additional year will reduce the predicted price by \$$(687-74)$ dollars as opposed to \$687 dollars when the car is not accord after accounting for other predictors.}**
+
+i) Return to Model G and examine if any cars in the data set should be considered unusual.
+
+    i) Identify 3 leverage points with hat values beyond 2(k+1)/n.  Describe why each stands out as a leverage point, citing specific attribues of each vehicle.
+
+```{r}
+#producing model diagonistics 
+modelG_diag <- ls.diag(modelG)
+
+#hat values 2(4+1/75)
+hat_lim <- 2*(4+1)/75
+hat_lim
+
+idx_beyond <- modelG_diag$hat > hat_lim
+
+carlot[idx_beyond, ]
+```
+   
+**Ans: \textcolor{blue}{The Hyundai Sonata has a really high miles and really low price and more than average year among the cars in the dataset which makes it stand out. The two Volkswagen Golfs ahve really low price and very high age although they have close to average miles. In all three of the cases the unusual conbination of the age and miles makes them leverage points.}** 
+
+    ii) Identify 3 outliers with standardized residuals beyond 2 or -2.  Describe why each was identified as an outlier.
+    
+```{r}
+res_beyond <- abs(modelG_diag$std.res) > 2
+
+carlot[res_beyond, ]
+
+predict(modelG, new = carlot[res_beyond, ], interval = "confidence")
+```
+
+**Ans: \textcolor{blue}{The actual prices for all three of these cars were above the 95\% confidence interval for their predicted price. This resulted in the high standardized residual values.}**
+    
+    iii) Identify 2 influential points with Cook's distances above 4/(n-k-1).  Describe why each was identified as influential.
+    
+```{r}
+cooks_lim <- 4/(75-4-1)
+cooks_lim
+
+cooks_beyond <- modelG_diag$cooks > cooks_lim
+
+carlot[cooks_beyond, ]
+predict(modelG, new = carlot[cooks_beyond, ], interval = "confidence")
+```
+
+
+**Ans: \textcolor{blue}{The Honda Accord with 15 years, 194,000 miles and price of \$6000 was an influential point because both it's combination of predictors were unusual and the actual price were away from the mean line or trend. For the Hyundai Sonata the age and miles were very low but it's actual price was still far away from the predicted or average trend line. Unususal predictors and unusual response variable value makes a point influential.}**
+
+
+## 2) Kentucky Derby  
+
+The Kentucky Derby is a 1.25 mile horse race held annually at the Churchill Downs race track in Louisville, Kentucky.  The data set **derbyplus.csv** contains the year of the race, the winning horse, the condition of the track, the average speed (in feet per second) of the winner, and the number of starters (horses entered in the race) for the years 1896-2017.  The track conditions have been grouped into three categories: fast, good (which includes the official designations “good” and “dusty”), and slow (which includes the designations “slow”, “heavy”, “muddy”, and “sloppy”).  Please use this data to answer the following questions:
+
+```{r}
+derby <- read_csv("~/Stats 272 S24/Class/Data/derbyplus.csv")
+```
+
+a)	Perform graphical exploratory data analysis by creating:
+
+    - a matrix of scatterplots for speed, year, and starters
+    - a boxplot showing speed by track condition
+
+    Comment on what you can learn from each plot.  Note that speed is our primary response.
+    
+
+```{r}
+#matrix of scatterplots 
+derby %>%
+select(speed, year, starters) %>%
+ggpairs()
+
+#boxplot 
+derby %>% 
+  ggplot(aes(speed, fill = condition))+
+  geom_boxplot()
+```
+
+**Ans: \textcolor{blue}{From the matrix scatterplot we can see that the year and speed are highly positively correlated. Year and starters are also moderately positively correlated. And speed and starters are slightly correlated. From the boxplot we can see that the fast degignated tracks has the highest median speed with the highest variability or IQR with some potential outliers. The slow designated tracks has the lowest median speed with high IQR. The good designated tracks has the lowest IQR with median inbetween.}**
+
+
+b)	We are interested in comparing fast track conditions to others, so first create an indicator variable called `fast` which is 1 for fast conditions and 0 for good and slow conditions.  Then create a categorical (factor) variable called `fast_fac` which is "fast" for fast conditions and "not fast" for good and slow conditions.  Finally, generate a coded scatterplot, with speed on the Y-axis, year on the X-axis, and separate points and lines by `fast_fac`.  Add a legend to explain your coding on the plot, and include good labels on your axes.  What does your coded scatterplot tell you about:
+
+```{r}
+#creating indicator variable for fast
+derby %>% 
+  mutate(fast = ifelse(condition == "fast", 1, 0)) %>% 
+  mutate(fast_fac = ifelse(fast == 1, "fast", "not fast")) %>% 
+  ggplot(aes(y = speed, x = year, color = fast_fac, 
+             shape = fast_fac, linetype = fast_fac)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(title = "Average speed vs Year of Derby by track condition", x="Year of the Derby",
+  y="Average speed of winning horse", shape = "Track Condition", 
+  color = "Track Condition", linetype = "Track Condition")
+
+```
+
+
+    - the relationship between year and speed
+* **Ans: \textcolor{blue}{As the year progresses the average speed of the winning horse got higher. Positive correlation.}**
+    - the relationship between fast conditions and speed
+* **Ans: \textcolor{blue}{The average speed of the winning horse over the years is slightly higher in a fast condition track as opposed to the average speed of the winning horse when the conditions are not fast.}**
+    - any interaction between year and fast conditions
+* **Ans: \textcolor{blue}{Yes. As the year progresses the gap between the trend lines reduces. Since the difference is not constant this implies there is interaction between year and fast conditions.}**
+    - the appropriateness of fitting a linear model
+* **Ans: \textcolor{blue}{We can see and obvious positive trend between year and average speed. There is a potential that the increase in average speed as the year progresses should slow down at some point but for this sample range a linear model is appropriate.}**
+
+
+c)	Create three additional variables:
+
+    - good = 1 if condition == "good" and 0 otherwise
+    - yearnew = year – 1896 (yearnew is considered a centered variable)
+    - yearnew2 = yearnew^2
+
+```{r}
+#creating additional variables
+derby <- derby %>% 
+  mutate(fast = ifelse(condition == "fast", 1, 0)) %>% 
+  mutate(fast_fac = ifelse(fast == 1, "fast", "not fast")) %>%
+  mutate(good = ifelse(condition == "good", 1, 0)) %>% 
+  mutate(yearnew = year - 1896) %>% 
+  mutate(yearnew2 = yearnew^2)
+  
+```
+
+
+    Then fit regression models in R with speed as the response and the following sets of predictors:
+
+1.	year 
+
+```{r}
+model1 <- lm(speed ~ year, data = derby)
+summary(model1)
+```
+
+
+2.	yearnew 
+
+```{r}
+model2 <- lm(speed ~ yearnew, data = derby)
+summary(model2)
+```
+
+
+3.	fast 
+
+```{r}
+model3 <- lm(speed ~ fast, data = derby)
+summary(model3)
+```
+
+
+4.	yearnew, fast 
+
+```{r}
+model4 <- lm(speed ~ yearnew + fast, data = derby)
+summary(model4)
+```
+
+
+5.	yearnew, fast, fast:yearnew 
+
+```{r}
+model5 <- lm(speed ~ yearnew + fast+fast:yearnew, data = derby)
+summary(model5)
+```
+
+
+6.	starters
+
+```{r}
+model6 <- lm(speed ~ starters, data = derby)
+summary(model6)
+```
+
+
+7.	yearnew, starters 
+
+```{r}
+model7 <- lm(speed ~ starters+yearnew, data = derby)
+summary(model7)
+```
+
+
+8.	yearnew, fast, good 
+
+```{r}
+model8 <- lm(speed ~ yearnew+fast+good, data = derby)
+summary(model8)
+```
+
+
+9.	yearnew, fast, good, fast:yearnew, good:yearnew 
+
+```{r}
+model9 <- lm(speed ~ yearnew+fast+good+fast:yearnew+good:yearnew, data = derby)
+summary(model9)
+```
+
+
+10.	yearnew, yearnew2
+
+```{r}
+model10 <- lm(speed ~ yearnew+yearnew2, data = derby)
+summary(model10)
+```
+
+
+
+d)	Interpret both your slope and intercept from Model 2 in context.  Explain any similarities or differences between Model 1 and Model 2 in terms of coefficients, R-squared, etc.
+
+**Ans: \textcolor{blue}{Intercept: The predicted average speed of the winning horse in 1896 is 51.6 feet per second. Slope: Every additional year from 1896 the predicted speed increases by 0.026 feet per second. Only the intercepts for model 1 and model 2 are different because we centered the year variable other than that everything else about the models are the same.}**
+
+
+e)	Is there significant evidence of a fast-by-yearnew interaction in Model 5?  State a conclusion in context.
+
+**Ans: \textcolor{blue}{The obtained slope of -0.011490 for the interaction term is more than 2 sd away from the average slope 0 under the null hypothesis. The associated low p-value of 0.00613 provides significant evidence that the true slope for the interaction term is indeed not 0. Therefore, there is significant evidence of a fast-by-yearnew interaction in Model 5. Meaning as the year progresses the effect of one additional year on speed reduces as well. }**
+
+
+f)	Explain why starters is highly significant in Model 6 but insignificant in Model 7.  Does multicollinearity seem to be a problem here?
+
+*Ans: \textcolor{blue}{IN model 6 starters is the only predictor variable. Therefore, any variability explained is due to it's correlation with speed. But in model 7 both starters and yearnew are predictors. As we have noticed in the matrix scatterplot starters and year are moderately correlated it is likely that they explain some of the same variability in the speed leading to multicolinearity.}**
+
+
+g)	Interpret the coefficients for both good and the intercept term in Model 8.
+
+**Ans: \textcolor{blue}{good: When the conditions are good the average speed of the winning horse is 1.1 feet per second higher after accounting for other variables. The predicted average speed of the winning horse is 50.58 feet per second when the conditions are neither fast nor good in year 1896.}**
+
+h)	Does it help to break out condition into 3 levels?  Answer this question by testing whether or not Model 9 is a significant improvement over Model 5.
+
+```{r}
+anova(model5, model9)
+```
+
+**Ans: \textcolor{blue}{Nested F-test: HO: model5 (reduced) is enough to explain the response variable vs. HA: model9 (full) with 3 conditions levels with their interaction term is significantly better at explaining the response variable. The obtained (F(2, 116) = 10.3, p = 7.603e-05 ***) model9 (full) with 3 conditions levels with their interaction term is significantly better at explaining the response variable. Therefore, we reject the null hypothesis say model9 is a significant improvement over model 5.}**
+
+i)  Interpret the coefficients in context for both the fast and the yearnew:fast terms in Model 9.
+
+**Ans: \textcolor{blue}{fast: When the conditions are fast the average speed of the winning horse is 2.18 feet per second higher as opposed to when the conditions are slow after controlling for other variables. yearnew:fast : When the conditions are fast the effect of one addition year on speed is (0.0312446 -0.0119839) additional feet per second as opposed to 0.0312446 addition feet per second when the conditions are slow.}**
+
+j)	Compare Model 2 with Model 10, including residual plots.  Does it seem better to model the relationship between speed and time as linear or quadratic.
+
+```{r}
+resid_panel(model2)
+
+resid_panel(model10)
+```
+
+
+**Ans: \textcolor{blue}{The r-squared value is lower in model 2 (0.51 as opposed to 0.64 in model 10. We also see for model 2 the equal variance condition is quite not satisfied since the residuals had a curved trend against the fitted line. But in model 10 the curved trend went away in the residual vs fitted line plot. It seem better to model the relationship as quadratic. }**
+
+
+k)	What final model would you choose to model winning speeds of Kentucky Derby winners?  Why do you prefer this model?  Be creative – you are definitely not limited to models 1-10 from part (c).
+
+**Ans: \textcolor{blue}{I would probably use a logged linear model because as the year progresses the increase in speed slows down which makes sense. Because there is a limit to the speed of a horse even after conditional and breeding improvements.}**
+

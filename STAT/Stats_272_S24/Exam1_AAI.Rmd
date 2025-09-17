@@ -1,0 +1,402 @@
+---
+title: "Stat 272: Exam 1"
+subtitle: "Spring 2024"
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  html_document: default
+word_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+\newcommand{\lineme}{
+\setlength{\unitlength}{1in}
+\begin{picture}(6, .125)
+\put(0,0.06125){\line(1,0){6.5}}
+\end{picture}
+}
+
+```{r, include=FALSE}
+library(mosaic)      # for favstats()
+library(car)         # for vif()
+library(GGally)      # for ggpairs()
+library(ggResidpanel) # for resid_panel
+library(tidyverse)   # ALWAYS load last
+```
+
+# Exam 1 Guidelines
+
+- Due on Moodle at 11:00 PM on Fri Mar 22.  Any extension must be approved by me well in advance.  Be sure you factor knitting issues into your timing.
+- Format will include a series of short answer questions from a case study.  I will provide R code and output; you are welcome to try things out yourself in RStudio, but this is not required.
+- You are only allowed to use materials from this class: our textbook (Stat2), class notes and handouts, HWs and answer keys, Moodle videos and other posts, and R server files.  You may also use R.
+- No other books or materials, paper or electronic, are allowed unless explicitly approved.  This is NOT open to web searches or ChatGPT and other large language models!
+- You may NOT discuss any aspect of this exam with any other person (except your professor)
+
+\vspace{1.5mm}
+
+\lineme
+
+\vspace{1.5mm}
+
+**PLEDGE:**  By typing my full name below, I pledge my honor that on this exam I have neither given nor received assistance not explicitly approved by the professor and that I have seen no dishonest work.  
+
+**SIGNATURE:** (Al Ashir Intisar)
+
+\vspace{1mm}
+
+$\bigcirc$ I have intentionally not signed the pledge (replace "$\bigcirc$" with an "**X**").
+
+\vspace{4mm}
+
+## Extra guidance
+
+Please answer all questions below and provide a knitted pdf with your responses, ideally using this Rmd file as your template and simply inserting your answers.  **You can submit ONLY your answers**; no R output needs to be submitted (that will save many pages and many chances for knitting issues)!  
+
+All R code you should need to answer each question can be found at the end of this file; you should not need to write any of your own code.  Of course, you are welcome to play with this data and write any additional code you may want.  
+
+Read each question carefully, and be sure your written responses are thorough, succinct, and clear, with careful use of statistical language.  Be thorough, but do not “brain dump”.  If you are not sure about an answer, ask me or write a note detailing your concern.  **Most questions can be answered in 1-2 sentences!**
+
+Finally, be sure to check your exam prior to submission; don't just assume it knitted okay.  In addition to submitting your knitted pdf file to Moodle, be sure your RMarkdown file is saved and accessible in your Submit folder on the RStudio server. 
+
+Good luck!
+
+\vspace{4mm}
+
+
+## Working women in the 1980s
+
+An article in the Journal of Applied Econometrics (Lee et al., 1995) provided a case study of the female labor supply in the United States in 1987.  Specifically, researchers were interested in how household and personal attributes of married heterosexual women were associated with the number of hours worked in a year.  We will examine 400 randomly selected women from that study, and then we will filter out women who worked 0 hours.  Key variables in the data set include:
+
+- hours = working hours per year
+- log_hours = natural log of working hours
+- income = other household income in hundreds of dollars
+- log_income = natural log of income
+- age = age in years
+- age_center = mean-centered age
+- child5 = number of children aged 0 to 5
+- child13 = number of children aged 6 to 13
+- mortgage = was a mortgage taken on the home?  1 = Yes, 0 = No
+- mort_fac = "mortgage" if home is on mortgage, otherwise "no mortgage"
+- educ_HS = 1 if no school beyond high school, 0 otherwise
+- educ_PB = 1 if school after high school (post-baccalaureate) but no 4-year college degree, 0 otherwise
+- educ_BA = 1 if a 4-year college degree or more, 0 otherwise
+- education = "HS or less", "post bacc", or "BA"
+
+
+0) What conclusions can you draw from the exploratory data analysis that may inform your modeling?  Give your top 3 observations and support each with plots or summary statistics.
+
+**Ans: \textcolor{blue}{From the matrix scatterplot we can observe weak positive correlation between age and income (0.210) and weak negative correlation between hours worked and number of children under the age of 5 (-0.213). The boxplot of hours worked vs children under 5 also confirms that hours worked varies depending on number of children under 5. Also, age and number of children under 5 is negatively correlated (-0.301). From the histogram of hours imcome we can see that the distribution is not as normal as the distribution of logged income.}**
+
+1) Researchers wished to begin by comparing the mean hours worked by women with a home mortgage to the mean hours worked by women without a home mortgage.  Based on Model 1:
+
+  a) Determine the mean hours worked in each group.
+
+**Ans: \textcolor{blue}{On average the yearly hours worked by women with a home mortgage is 1629.52 as opposed to 1451.14 hours for women without home mortgage.}**  
+
+  b) Determine what the p-value for the two-sample t-test would have been (you don't need to write any new code), then interpret this p-value in context (i.e. if it's .12, what's happening 12% of the time?)
+  
+**Ans: \textcolor{blue}{The p-value obtained for the two-sample t-test is 0.0264. This means that if there were no difference between the yearly hours worked between mortgage group and no mortgage group, then only 2.6\% of the time we would expect to see a difference of 178.38 hours or more between the groups.}**
+  
+  c) State a conclusion for your test from (b) in context.
+  
+**Ans: \textcolor{blue}{Since the obtained p-value of 0.0264 is less than the common significance threshold of 0.05 we reject the null hypothesis in favor of the alternative hypothesis that the yearly hours worked by women with home mortgage and without home mortgage is different.}**
+  
+  d) Model 1a adds child5 as a predictor, and you should notice that the coefficient for mortgage is smaller than in Model 1.  Explain to someone without a statistical modeling background why the coefficient drops.
+  
+**Ans: \textcolor{blue}{When we only use the mortgage status to predict the yearly hours worked the model let’s mortgage status predict all the variability it can predict in yearly hours. But some of the variability in mortgage status could be due to how many children under 5 the women have. So when combined the coefficient for mortgage is dropped because some of the variability previously explained by mortgage status is now being explained by the number of children under 5 in model 1a.}**
+
+
+2) Model 2 uses logged income of other family members as the sole predictor of hours worked.  
+
+  a) Interpret the coefficient for log_income in context.
+  
+**Ans: \textcolor{blue}{The obtained coefficient of -32.49 means that when income is doubled, the mean of the yearly hours worked changes by -32.49*(log2) = -9.78. Thus mean of the yearly hours worked reduces as the income gets higher.}**
+  
+  b) Do you think using log_income as a predictor is better than using income (as in Model 2a)?  Justify your response by referring to specific plots or summary statistics.
+  
+**Ans: \textcolor{blue}{In model 2 using log\_income as a predictor we obtained a p-value of 0.444 and for model 2a with just income as predictor obtained p-value of 0.931 for the t-test of the slope. The really high p-values imply that the slope obtained is not significantly different from 0 in both models. The R-squared value for model 2 is 0.002132 and for model 2a is 2.752e-05, both of which are very low indicating almost no explaining power of either income or log\_income.  The conditions for using linear regression are fairly met in both models except slight deviations in linearity as observed in Q-Q plot of both models. Even though using log\_income increases p-value and R-squared very slightly the improvement is nowhere near significant and thus does not make it a better model.}**
+
+
+3) Model 3 uses centered age (age_center) and number of children aged 0-5 (child5) as predictors.  
+
+  a) Interpret the coefficient for age_center in this model.
+  
+**Ans: \textcolor{blue}{The obtained coefficient for age\_center in model 3 is -7.188. This means for a 1 year increase in age, the predicted working hours per year for a woman will decrease by 7.188 hours while holding the number of children under age 5 constant.}**
+  
+  b) If we replace age_center with uncentered age, what estimates and summary statistics would change?
+  
+**Ans: \textcolor{blue}{If we replace age\_center with uncentered age, then only the intercept will change from 1630.744 to 1900.213. Everything else will remain the same. }**
+  
+  c) Test for the significance of child5.  State a conclusion in context, and support your conclusion with a test statistic and p-value.
+  
+**Ans: \textcolor{blue}{In model 3 the coefficient obtained for child5 is -237.553 with t-score of -4.001 and associated p-value of 8.11e-05. This means the obtained coefficient is 4 sd away from being 0 under null hypothesis. The really low p-value also indicates the observed coefficient is very unlikely due to random chance. Therefore, we conclude that the number of children between age 0-5 is significant in predicting hours worked per year by women.}**
+
+
+4) Model 4 adds an interaction between age_center and child5 to Model 3.
+
+  a) Interpret a 95% confidence interval for age_center
+  
+**Ans: \textcolor{blue}{We are 95\% confident that a one year increase in age will reduce the predicted yearly working hours of a woman by 18.999 to 2.267 hours when they don’t have any children between the age of 0-5.}**
+  
+  b) Interpret the coefficient for age_center:child5.  In your interpretation, consider only the two most common values of child5: 0 and 1.
+  
+**Ans: \textcolor{blue}{The obtained coefficient of 16.43 for the interaction term implies that when the woman has no children between the age of 0-5, then 1 year increase in age will reduce the predicted yearly hours worked by 10.633 hours as opposed to when the woman has 1 child of age between 0-5, then 1 year increase in age will increase the predicted yearly hours worked by 5.797 hours.}**
+  
+  c) Interpret the R-squared value for Model 4 in context.
+  
+**Ans: \textcolor{blue}{The obtained R-squared value is 0.0747 which means only 7.5\% of the variability in yearly hours worked can be explained by the model.}**
+
+
+5) Model 5 adds terms for child13 and mortgage to Model 4.
+
+  a) Your next-door neighbor is 36.18 years old, has 3 children (aged 1, 3, and 7), and has a mortgage on her house.  Provide a point estimate and an appropriate 95% interval to describe the number of hours in a year our model would expect her to work.  (No interpretations needed.)
+  
+**Ans: \textcolor{blue}{The estimated number of hours worked in a year by my neighbor is 1411.807 hours. And the 95\% prediction confidence interval for the estimated hours worled is 118.8121 hours to 2704.802 hours.}**
+  
+  b) Describe in context 3 ways in which you might obtain a narrower interval than the one you obtained in (a).
+  
+**Ans: \textcolor{blue}{Having a larger sample size would result in a narrower interval. Choosing a lower value for the confidence such as 90\% instead of 95\% will also result in a narrower interval. Choosing a more homogeneous sample will make the SD small and thus the interval narrower.  Making the spread of the explanatory variables large will also result in narrower interval.}**
+
+  c) Do model conditions appear likely to hold for Model 5?  Support your conclusions by appealing to specific features of specific plots.
+  
+**Ans: \textcolor{blue}{In the Q-Q plot we can see for most part the values are closely following the line which means the linearity condition is met without any significant deviation. Since the sample of 400 was selected randomly the independence condition is met. From the histogram of the residual we can see that the distribution is slightly left skewed but still mostly follows a normal trend thus normality condition is met. The residual vs fitted line plot shows that the residuals are spread equally on both sides of the fitted line and thus the equal variance condition is met.}**
+
+  d) Participants with IDs 163 and 129 were among those flagged for having high leverage.  In context, what about those subjects likely led to them being flagged?
+
+**Ans: \textcolor{blue}{Participant with ID 129 is a 36.18+20.5 = 56.68 years old woman with 2 two kids under the age of 5. The combination of these two predictor values is extremely unusual and thus have high leverage. The participant with ID 163 is a 36.18 - 13.5 = 22.68 years old woman with 3 kids under 5 years old and 1 kid between the ages of 6-13. This combination of predictor values is also unusual and thus has high leverage.}**
+
+  e) Participant 129 also by far had the most influence.  Explain to someone without a statistical modeling background what it means to be influential in a multiple regression model.
+
+**Ans: \textcolor{blue}{Participant 129 had an unusual combination of predictors and an unusual number of hours worked for a person with those predictor values in a multiple regression model. Since this unusual observation is included in the model the models tries to make it’s prediction as close as possible to the real value and thus changes the prediction equation due to the unusual point compared to a model without that point. Therefore, the participant 129 individually influences the model.}**
+
+  f) Two participants had standardized residuals above 3.  What does that tell us about our predicted hours worked from Model 5 for these two participants?
+
+**Ans: \textcolor{blue}{The positive standardized residuals over 3 implies that the observed hours worked is more than 3 SE above the predicted hours worked which makes these 2 observations outliers.}**
+
+
+
+6) Model 6 introduces indicator variables to represent a woman’s highest level of education, alongside centered age and number of children aged 0-5.  
+
+  a) Interpret the coefficient for educ_BA
+  
+**Ans: \textcolor{blue}{The obtained coefficient for educ\_BA is 35.445 which means that after adjusting for age and number of children between the age of 0-5 the estimated yearly hours worked for a woman with a four year college degree is 32 hours higher compared to a woman with no education beyond highschool.}**
+
+  b) The line `anova(model3, model6)` conducts a significance test.  Write out the null and alternative hypotheses, and state a conclusion in context supported by a test statistic and p-value.
+  
+**Ans: \textcolor{blue}{$H_0$: The reduced model (model3) is enough to explain the variability in yearly hours worked vs $H_a$: The full model (model6) with indicator variables for education level is significantly better at explaining the variability in hours worked. The obtained (F(2, 272) = 1.9084, p=0.1503) suggests that the extended model with indicator variables for education levels  is not significantly different from the simpler model3. Therefore, we fail to reject the null hypothesis that model3 is enough and model6 is no improvement over model3.}**
+
+
+7) Model 7 uses education, income, and their interaction to predict hours worked.
+
+  a) Use the results of Model 7 to write down equations for the 3 lines that appear in the EDA plot entitled "Hours worked vs. Education and Income".
+  
+* **\textcolor{blue}{For women with no education beyond highschool: $\hat{hours \ worked} = 1321.2513 + 0.7714 \times income$}**
+* **\textcolor{blue}{For women with some education after highschool but no 4 year degree: $\hat{hours \ worked} = 1651.5954 + 0.0677 \times income$}**
+* **\textcolor{blue}{For women with 4 year college degree: $\hat{hours \ worked} = 1667.8873 - 0.3031 \times income$}**
+
+
+  b) Model 7a also uses education, income, and their interaction as predictors.  Even though it has the same R-squared value and residual SE as Model 7, its coefficients are *all* different.  Explain what is happening, discussing one or two coefficients in detail.
+  
+**Ans: \textcolor{blue}{In model7 our reference indicator variable for education was no education beyond highschool (HS or less) but in model7a our new reference is the 4 year college degree (BA).  The intercept has changed from 1321.2513 to 1667.8873. This is because in model7 the intercept was the intercept for prediction line of women with no education beyond highschool and in model7a the intercept is for women with 4 year college degrees. The coefficient for income also changed from 0.7714 to -0.3031. And We can see from the equations in (a) that it is exactly coefficient for income in the equation for hours worked by women with four year college degrees.}**
+
+
+8) Discuss scope of inference, using Model 5.  Does taking out a home mortgage cause a woman to work more hours?  How far can we generalize these results?
+
+**Ans: \textcolor{blue}{Considering the study is observational we can not infer any causation. In the model summary we can see that the t-test for the coefficient for mortgage is significant with p-value of (0.02751) being slightly below the regular significance threshold used. This implies that mortgage status has predictive ability of yearly hours worked for women in this model. But the variability explained is so small (R-squared 0.09484) that we can not say mortgage causes a woman to work more hours. We can only say women with mortgae on home works slightly higher hours on average compared to women without mortgage in the sample. And is the sample is representative of a target population then we can extend this inference to that population.}**
+
+
+## R code (don't need to include with your final submission)
+
+```{r}
+# Call in data and look at it
+work <- read_csv("~/Stats 272 S24/Class/Data/exam1_data_S24.csv")
+work_atleast1 <- work %>%
+  filter(hours > 0)
+print(work_atleast1, width = Inf, n = 5)
+```
+
+
+## Exploratory data analysis
+
+```{r}
+# Individual numeric variables
+
+ggplot(data = work_atleast1, aes(x = hours)) +
+  geom_histogram(bins = 20)
+
+ggplot(data = work_atleast1, aes(x = log_hours)) +
+  geom_histogram(bins = 20)
+
+ggplot(data = work_atleast1, aes(x = income)) +
+  geom_histogram(bins = 20)
+
+ggplot(data = work_atleast1, aes(x = log_income)) +
+  geom_histogram(bins = 20)
+
+ggplot(data = work_atleast1, aes(x = age)) +
+  geom_histogram(bins = 20)
+favstats(~ age, data = work_atleast1)
+
+ggplot(data = work_atleast1, aes(x = child5)) +
+  geom_histogram(bins = 20)
+
+ggplot(data = work_atleast1, aes(x = child13)) +
+  geom_histogram(bins = 20)
+
+work_atleast1 %>%
+  select(hours, income, age, child5, child13) %>%
+  ggpairs()
+```
+
+```{r}
+# Categorical predictors vs. hours
+
+ggplot(data = work_atleast1, aes(x = mort_fac, y = hours)) +
+  geom_boxplot()
+favstats(hours ~ mort_fac, data = work_atleast1)
+
+ggplot(data = work_atleast1, aes(x = education, y = hours)) +
+  geom_boxplot()
+favstats(hours ~ education, data = work_atleast1)
+
+ggplot(data = work_atleast1, aes(x = as_factor(child5), y = hours)) +
+  geom_boxplot()
+favstats(hours ~ as_factor(child5), data = work_atleast1)
+
+ggplot(data = work_atleast1, aes(x = as_factor(child13), y = hours)) +
+  geom_boxplot()
+favstats(hours ~ as_factor(child5), data = work_atleast1)
+
+work_atleast1 %>% 
+  ggplot(aes(hours, fill = mort_fac))+
+  geom_boxplot()+
+  labs(title = "Hours worked vs home mortgage")
+```
+```
+
+```{r}
+# Coded scatterplots
+
+work_atleast1 %>%
+  filter(child5 < 2) %>%
+  mutate(child5_fac = ifelse(child5 == 0, "no kids 0-5", "1 kid 0-5")) %>%
+  ggplot(aes(y = hours, x = age_center,
+            color = child5_fac, shape = child5_fac, linetype = child5_fac)) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE) +
+    labs(x="Mean-centered age", 
+         y="Number of hours worked")
+
+work_atleast1 %>%
+  filter(income < 2000) %>%
+  ggplot(aes(y = hours, x = income,
+            color = education, shape = education, linetype = education)) +
+    geom_point() +
+    geom_smooth(method = "lm", se = FALSE) +
+    labs(x="Income", 
+         y="Number of hours worked",
+         title="Hours worked vs. Education and Income")
+```
+
+
+## Run regression models
+
+```{r}
+model1 <- lm(hours ~ mortgage, data = work_atleast1)
+summary(model1)
+
+model1a <- lm(hours ~ mortgage + child5, data = work_atleast1)
+summary(model1a)
+```
+
+```{r}
+model2 <- lm(hours ~ log_income, data = work_atleast1)
+summary(model2)
+resid_panel(model2)
+
+model2a <- lm(hours ~ income, data = work_atleast1)
+summary(model2a)
+resid_panel(model2a)
+```
+
+```{r}
+model3 <- lm(hours ~ age_center + child5, data = work_atleast1)
+summary(model3)
+```
+
+```{r}
+model4 <- lm(hours ~ age_center + child5 + age_center:child5, 
+             data = work_atleast1)
+summary(model4)
+confint(model4)
+```
+
+```{r}
+model5 <- lm(hours ~ age_center + child5 + age_center:child5 +
+               child13 + mortgage, data = work_atleast1)
+summary(model5)
+
+predict_at <- tibble(age_center = 0, child5 = 2, child13 = 1, mortgage = 1)
+predict(model5, new = predict_at, interval = "confidence")
+predict(model5, new = predict_at, interval = "prediction")
+
+resid_panel(model5)
+
+model5_diag <- ls.diag(model5)
+model5_data <- work_atleast1 %>%
+  select(hours, age_center, child5, child13, mortgage) %>%
+  mutate(hat = model5_diag$hat,
+         id = row_number())
+
+model5_data %>%
+  filter(hat > (3 * 6 / 277)) %>%
+  arrange(desc(hat))
+
+ggplot(data = model5_data, aes(x = id, y = hat)) + 
+  geom_point() +
+  geom_hline(yintercept = 12/277, color = "red", linetype = 2) +
+  geom_hline(yintercept = 18/277, color = "red")
+
+model5_data <- model5_data %>%
+  mutate(fitted = fitted(model5),
+         std_res = rstandard(model5)) 
+
+model5_data %>%
+  filter(std_res > 2 | std_res < -2) %>%
+  arrange(desc(abs(std_res)))
+
+ggplot(data = model5_data, aes(x = fitted, y = std_res)) +
+  geom_point() +
+  geom_hline(yintercept = c(-2, 2), color = "red")
+
+model5_data <- model5_data %>%
+  mutate(cooks = model5_diag$cooks) 
+
+model5_data %>%
+  filter(cooks > (4 / (277 - 5 - 1))) %>%
+  arrange(desc(cooks))
+
+ggplot(data = model5_data, aes(x = id, y = cooks)) + 
+  geom_point() +
+  geom_hline(yintercept = (4 / (277 - 5 - 1)), color = "red", linetype = 2) 
+```
+
+```{r}
+model6 <- lm(hours ~ age_center + child5 + educ_PB + educ_BA, 
+             data = work_atleast1)
+summary(model6)
+
+anova(model3, model6)
+```
+
+```{r}
+model7 <- lm(hours ~ income + educ_PB + educ_BA + income:educ_PB +
+               income:educ_BA, data = work_atleast1)
+summary(model7)
+
+model7a <- lm(hours ~ income + education + income:education, 
+              data = work_atleast1)
+summary(model7a)
+```

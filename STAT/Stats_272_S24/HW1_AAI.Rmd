@@ -1,0 +1,162 @@
+---
+title: 'Stat 272: Homework #1'
+date: 'Due by 11pm on Friday Feb 16'
+author: Al Ashir Intisar
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  html_document: default
+  word_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+For homework assignments, you only need to submit your knitted pdf file to Moodle, but be sure your RMarkdown file is saved and accessible in your Submit folder on the RStudio server. Be sure to include all of your R code, in addition to your output, plots, and written responses. Read each question carefully, and be sure your written responses are thorough, succinct, and clear, with careful use of statistical language. Finally, be sure to check your assignment prior to submission; don't just assume it knitted okay.
+
+## 1) Conceptual Exercise 0.5: Scooping ice cream (p.13)
+
+Complete parts (a)-(d).
+
+**Ans:**
+
+* **\textcolor{blue}{a) Each participating nutrition expert is the observation unit in this study.}**
+* **\textcolor{blue}{b) It is a controlled experiment because the researchers have randomly assigned treatment (biggher bowls and sppons) and control group.}**
+* **\textcolor{blue}{c) The response variable in this study is the amount of ice-cream scooped. It is a quantitative variable.}**
+* **\textcolor{blue}{d) The size/type of bowl and spoon are the explanatory variables in this study. The explanatory variables are categorical.}**
+
+## 2) Guided Exercise 0.10: Measuring pumpkins (p.14)
+
+Complete parts (a)-(d).
+
+**Ans:**
+
+* **\textcolor{blue}{a) The population of interest for the farmer is all the pumpkins he grows.}**
+* **\textcolor{blue}{b) It is a statistic because the summary is calculated on a sample, the pumpkins from a single season in this case.}**
+* **\textcolor{blue}{c) The population of interest for the customer is all the pumpkins in the store.}**
+* **\textcolor{blue}{d) It is a statistic calculated from a sample of 20 pumpkins bought from the store.}**
+
+
+## 3) Guided Exercise 0.15: Roller coasters (p.15)
+
+Complete parts (a)-(c).
+
+* **\textcolor{blue}{a) The predicted top speed of a wooden roller coaster is 54.}**
+* **\textcolor{blue}{b) The predicted top speed of a steel roller coaster is 61.6.}**
+* **\textcolor{blue}{c) $Speed_{steel} - Speed_{wooden} = 7.6$. This number is the slope of the model equation. Since the explanatory variable only has 2 values 0 and 1 the predicted value changes between two values and their difference is the slope.}**
+
+## 4) Open-ended 0.23: Incentive for weight loss (p.16)
+
+Just answer parts (a)-(h) below. The libraries and data needed are provided in the code below:
+
+```{r, include = FALSE}
+library(mosaic)
+library(tidyverse)
+library(Stat2Data)  # Load data from Stat2Data package
+data("WeightLossIncentive7")
+wtloss7 <- as_tibble(WeightLossIncentive7)
+```
+
+a)  There were 5 subjects listed in the original WeightLossIncentive dataset who were not included in WeightLossIncentive7 because they were missing weight loss data at 7 months. 4 of the 5 subjects with missing month 7 data were from the incentive group. Discuss potential implications of removing these 5 subjects on your analyses.
+
+**Ans: \textcolor{blue}{Depending on the sample size for each control and ttreatment group loosing 5 observations from just the treatment group could lead to difference in the sample mean calculated. There is a danger of loosing valuable data. But in this study the resulting group sample sizes are 15 and 18 which is not that different.}**
+
+b)  Perform an exploratory data analysis---i.e., report and discuss meaningful summary statistics and at least one useful plot.
+
+```{r}
+# An R chunk for your code
+# summary stats
+favstats(Month7Loss~Group, data = wtloss7)
+
+# boxplot 
+wtloss7 %>% 
+  ggplot(aes(Month7Loss, fill = Group))+
+  geom_boxplot()
+
+# density plot
+ggplot(wtloss7, aes(x = Month7Loss, fill = Group)) +  
+  geom_density(alpha = 0.25)
+```
+
+**Ans: \textcolor{blue}{The mean wieght loss for control group is 4.6 whereas for the incentive group it is 7.8. The IQR for the control group is -1.25 to 8.125 which slightly smaller than the IQR for the incentive group 3.25 to 17.25. Standard deviation for control group is 9 which is pretty close to 12 which is SD for the incentive group. From the boxplot we can see both group have 1 kind of extreme outlier each. From the density plot we can see the distribution of weight loss in both group is somewhat normal. The incentve group seem little skewed to the left.}**
+
+c)  Perform an appropriate hypothesis test using (i) an independent samples t-test, and (ii) simple linear regression. In each case, state your null and alternative hypotheses. Then, state one conclusion based on your tests (and supported by your 2 p-values) with a well-written sentence in the context of the problem. (Hint: Use the code from `01_haiku_code.Rmd` and change data/variable names.)
+
+```{r}
+# independent samples t-test
+t.test(Month7Loss~Group, data = wtloss7)
+
+# simple linear regression
+lm_weight <- lm(Month7Loss ~ Group, data = wtloss7)
+summary(lm_weight)
+
+```
+
+**Ans:**
+
+* **\textcolor{blue}{i) Null: There is no difference in the mean weight loss after 7 months between people who have financial incentive and those who don't in the target population. Alternative: The mean weight loss after 7 months between people who had financial incentive is different from the group without the incentive.}**
+
+* **\textcolor{blue}{ii) Null: The true slope for the target population is 0. Meaning having or not having financial incentive does not affect the average weight loss after 7 months. Alternative: The true slope for the target population is not 0 meaning having the financial incentive affect the average weight loss after 7 months.}**
+
+* **\textcolor{blue}{Conclusion: The mean weight loss after 7 months in the incentive group is not different than the mean weight loss in the control group. The p-value for the t-test is 0.422 and for the linear regression model is 0.4129 which means the observed difference in means for the t-test and the observed slope for the linear regression model is not rare and can happen under null hypothesis. Therefore we fail to reject the null hypothesis.}**
+
+d)  Tell us what your p-value from the independent samples t-test means (e.g., if it's .333, what is happening 33.3% of the time?).
+
+**Ans: \textcolor{blue}{The obtained p-value for the t-test is 0.422 which means under the null hypothesis we would expect to see the observed difference of means about 42\% of the time.}**
+
+e)  Report an appropriate 95% confidence interval and interpret it in the context of the problem.
+
+**Ans: \textcolor{blue}{We are 95\% confident that the true difference in mean weight loss after 7 months for incentive group and control group in the target population lies between -11.12 to 4.8. Since the 0 value is in the interval we fail to reject the null hypothesis.}**
+
+f)  Assess whether or not assumptions for the two-sample t-test are met (i.e., independence, normality within groups, and sometimes equal variability between groups).
+
+* **\textcolor{blue}{Independence: If the samples were randomly selected then this condition is met.}**
+* **\textcolor{blue}{Normality: Distribution for both groups seems somewhat normal. Although the distrbution in incentive group has left tail. This could be due to the participants that left the study. So considering the low sample size this condition might not be met.}**
+* **\textcolor{blue}{Equal variability: I believe both groups have equal variability.}**
+
+g)  Discuss scope of inference -- issues of causation and generalizability. Also discuss what we can conclude about financial incentives for weight loss when combining the results of the 4 month (Example 0.2) and 7 month analyses.
+
+**Ans: \textcolor{blue}{There is not enogh description about the participants so I am not sure about the generalizability. Since the treatment and control group were randomly assigned we can infer causation from th results. We can conclude that even though financial incentive can lead to weight loss in the short term (4 months) the weigth loss is not retained over losng period (7 months).}**
+
+h)  Read the article which produced this data set: "Financial incentive-based approaches for weight loss: a randomized trial" from the Journal of the American Medical Association (it can be found on Moodle under *Volpp 2008.pdf*). Describe at least 3 things you learned by reading the article that were not apparent from the short description of the study in Chapter 0. What are your feelings about the study design and conclusions?
+
+**Ans: \textcolor{blue}{More details about the treatment and control group and that there were 3 groups monthly weigh-ins, lottery incentive, deposit contract. From the short version in book we just saw two groups instead of 3. The participants were obsese or overweight which were not apparent in the short version. The sample was not random and sounds like convenience sample. And less than 20\% of the invited participant responded. The randomized control trial design is good but the way the sample was collected I don't think it represent the intended target audience.}**
+
+## 5) Class haiku data
+
+Is there significant evidence that being primed for intrinsic motivation leads to more creative poems about statistics?  Read in our class data (when ready, it will be stored as `haiku_class_S24.csv` in our *Class \> Data* folder), conduct an appropriate significance test, and state a conclusion in context.
+
+```{r}
+haiku_class <- read_csv("~/Stats 272 S24/Class/Data/haiku_class_S24.csv")
+```
+
+
+```{r}
+# summary stats
+favstats(creativity~motivation, data = haiku_class)
+
+# EDA graphs
+#boxplot
+haiku_class %>% 
+  ggplot(aes(creativity, fill = motivation))+
+  geom_boxplot()
+
+# density plot
+haiku_class %>% 
+  ggplot(aes(creativity, fill = motivation))+
+  geom_density(alpha = 0.5)
+```
+
+**Ans: \textcolor{blue}{From the summary stats we can see that the mean is almost the same for both groups and the SD is also pretty close. And the boxplot and density plot shows that the distribution is quite normal without significant skews. Although the sample collected was a convenience sample and would not be very useful for generalizing inferences.}**
+
+* **\textcolor{blue}{Null Hypothesis: the difference in mean creativity score for incentive and control group is 0 for the target population.}**
+* **\textcolor{blue}{Alternative Hypothesis: the difference in mean creativity score for incentive and control group is not 0 for the target population.}**
+
+```{r}
+# t-test
+t.test(creativity~motivation, data = haiku_class)
+
+```
+
+
+**Ans: \textcolor{blue}{From the t-test we can see that the t-score is 0.4 which means the observed difference of mean is pretty close to the mean difference under the null hypothesis. The obtained p-value of 0.7 confirms that the observed difference is not that different from 0. Therefore we fail to reject the null hypothesis. There is not enough evidence to suggest that the true difference in mean creativity score for intrinsic motivation and extrinsic motivation group is different than 0 in the population.}**

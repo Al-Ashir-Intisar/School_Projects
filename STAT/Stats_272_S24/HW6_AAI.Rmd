@@ -1,0 +1,261 @@
+---
+title: 'Stat 272: Homework #6'
+subtitle: 'Al Ashir Intisar'
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  html_document: default
+  word_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+For homework assignments, you only need to submit your knitted pdf file to Moodle, but be sure your RMarkdown file is saved and accessible in your Submit folder on the RStudio server. Be sure to include all of your R code, in addition to your output, plots, and written responses. Read each question carefully, and be sure your written responses are thorough, succinct, and clear, with careful use of statistical language.  Finally, be sure to check your assignment prior to submission; don't just assume it knitted okay.
+
+```{r, include=FALSE}
+library(glmnet)
+library(leaps)
+library(car)
+library(tidyverse)  
+library("olsrr")
+# ALWAYS load last
+```
+
+
+## 1) Got Time? Bootstrap a 95% CI for a Median (a discrete value)
+
+In 1882, Simon Newcomb performed an experiment to estimate the speed of light. He measured the time it took for light to travel from Fort Myer to the Washington monument. The data are provided below, measured in deviations from $24,800$ nanoseconds.  
+
+```{r}
+speed <- c(28, -44, 29, 30, 24, 28, 37, 32, 36, 27, 26, 28, 29, 26, 27, 22, 23, 20, 25, 25, 36, 23, 31, 32, 24, 27, 33, 16, 24, 29, 36, 21, 28, 26, 27, 27, 32, 25, 28, 24, 40, 21, 31, 32, 28, 26, 30, 27, 26, 24, 32, 29, 34, -2, 25, 19, 36, 29, 30, 22, 28, 33, 39, 25, 16, 23)
+```
+
+a) Produce a bootstrap distribution plot for the *median* and describe this distribution.
+
+```{r}
+# generating the bootstrapped distribution of median 
+boot_median_dist <- vector("double", length = 10000)  # empty spots to store medians
+head(boot_median_dist)
+
+for(i in 1:10000){
+  boot_med_sample  = sample(speed, size = 65, replace = TRUE)
+  boot_median_dist[i] = median(boot_med_sample)
+}
+head(boot_median_dist)   # First six medians, 6 estimates for median
+
+```
+
+
+```{r}
+# plotting the bootstrapped distribution of medians
+
+boot_median_tibble <- enframe(boot_median_dist) %>%
+  rename(boot_median = value)
+boot_median_tibble
+
+ggplot(data = boot_median_tibble, aes(x = boot_median)) +
+  geom_histogram(color = "black", fill = "steelblue", alpha = 0.5, bins = 16) +
+  labs(x = "Bootstrapped Medians")   
+```
+
+**Ans: \textcolor{blue}{From the histogram we can observe that the distribution of the bootstrapped medians ranges mostly from 25 to 30 with with fairly a normal distribution. More than 80\% of the time the median is either 27 or 28.}**
+
+
+
+b) Calculate a 95% bootstrapped confidence interval for the *median* and interpret it in context.
+
+```{r}
+quantile(boot_median_tibble$boot_median, probs = c(0.025, 0.975))
+```
+
+**Ans: \textcolor{blue}{We are 95\% confident that the true median recorded time taken for light to travel from Fort Myer to the Washington monument is in between 24826 nanoseconds to 24828 nanoseconds. I believe in this case we can say we are 95\% confident that the true time taken for light to travel from Fort Myer to the Washington monument is between 24826-24828 nanoseconds (since only the recording varies not the speed of light).}**
+
+c) Do these data support the current claim about the speed of light (33.02 in this example)?  Why or why not? 
+
+**Note: \textcolor{red}{I will need the distance between Fort Myer and Washington monument to be able to answer that question? Also in what unit is the speed (33.02) given in this question?}**
+
+**Ans: \textcolor{blue}{}**
+
+
+## 2) Fertility measurements (described on page 189 of STAT2 - Exercise 4.4)
+
+Read in the data set `Fertility`.  We will attempt to build a model for `MeanAFC` in terms of the other predictors *except* for `LowAFC`. 
+
+```{r, include = FALSE}
+library(Stat2Data)
+data("Fertility")
+Fertility <- as_tibble(Fertility) %>% select(!LowAFC)
+Fertility
+```
+
+a) Create a correlation matrix and comment on what you learn about the relationships between numeric variables.
+
+```{r}
+# old school, no-frills correlation matrix 
+#   (assumes all variables are numeric)
+cor(Fertility)
+
+# updated correlation matrix combined with scatterplot matrix and 
+#   density plots of individuals variables
+library(GGally)
+Fertility %>% 
+  ggpairs()
+
+# graphical version of correlation matrix
+library(corrplot)
+corrplot(cor(Fertility), method = "circle")
+```
+
+**Ans: \textcolor{blue}{From the matrix scatterplot we can see that many of the variables are correlated with medium to strong corelations. For instance, MaxDailyGn-TotalGn and Oocytes-Embryos have strong positive correlation. Age-MaxDailyGn/TotalGn, MaxE2-Oocytes/Embryos and some other variables have medium positive correlation. Overall we can see that most of the variables are correlated to some other variable in this dataset.}**
+
+
+b) Fit the multiple regression model to predict average antral follical count (`MeanAFC`) using `Age`, `FSH`, `E2`, `MaxE2`, `MaxDailyGn`, `TotalGn`, `Oocytes`, and `Embryos` as predictors. Report on which variable(s) *seem* to be most important for the model based on the summary of this model.
+
+```{r}
+#creating multiple linear regression model
+mlm_fertility <- lm(MeanAFC~Age+FSH+E2+MaxE2+MaxDailyGn+TotalGn+Oocytes+Embryos, data = Fertility)
+
+summary(mlm_fertility)
+```
+
+**Ans: \textcolor{blue}{From the model summary we can see that the only two variables that are significant in predicting MeanAFC are E2 and Oocytes with lower p-value than the regular threshold of 0.05.}**
+
+c) Create the added variable plots for the MLR model in part (b). Comment on how the added variable plots indicate a stronger predictor. Does this method indicate the same important variable(s) you identified from the model summary?
+
+```{r}
+avPlots(mlm_fertility)
+```
+
+**Ans: \textcolor{blue}{From the Added variable plots we can see that FSH, E2, MaxDailyGn and Oocytes show some explaining power (slope not equal to 0) while predicting MeanAFC after accounting for other variables in the model. This include the two inportant variables we observed in the previous model summary E2 and Oocytes. For the other two variables even though the slope is not zero in the added variable plot but the observed value of the slope is not statistically significant or could happen due tpo random chance.}**
+
+d) Find the variance inflation factors for your predictor variables in the MLR model from (b). Do any variable(s) seem to have multicollinearity problems? How is this shown in the added variable plots for those variables? 
+
+```{r}
+vif(mlm_fertility)
+```
+
+**Note: \textcolor{red}{How is VIF shown in added variable plots?}**
+
+**Ans: \textcolor{blue}{Predictors Oocytes and Ebryos have low multicolinearity where as MaxDailyGn and TotalGn has moderate multicolinearity. In the added variable plots it is shown by a flat fitted line with slope 0.}**
+
+e) Use the best subsets method to find the 2 best combinations of variables for models ranging from one predictor to all eight predictors (there's only one model with all eight). Report the variables included in the overall optimal model using:
+
+```{r}
+best2 <- regsubsets(MeanAFC ~ ., data = Fertility, nbest = 2)
+out <- summary(best2)     
+# The summary calculates our criteria values so we should save it
+out$which  # tells us the variables in each model
+```
+
+    i) BIC criteria
+    
+```{r}
+plot(best2, scale = "bic")
+
+```
+
+**Ans: \textcolor{blue}{The overall optimal using BIC includes MaxDailyGn and Oocytes as predictors.}**
+    
+    ii) Mallow's Cp criteria
+    
+```{r}
+plot(best2, scale = "Cp")
+```
+
+**Ans: \textcolor{blue}{The overall optimal using Mallow's Cp includes MaxDailyGn, Oocytes, FSH, and E2 as predictors.}**
+  
+    iii) Adjusted R^2 criteria
+    
+```{r}
+plot(best2, scale = "adjr2")
+```
+
+**Ans: \textcolor{blue}{The overall optimal using adjusted R-squared includes MaxDailyGn, Oocytes, FSH, and E2 as predictors.}**
+    
+Are there differences between the "best model" for each criteria?
+
+**Ans: \textcolor{blue}{The optimal model by ajusted R-squared and Mallow's Cp is the same but by BIC the model is smaller with only two predictors.}**
+
+f) Using stepwise selection, find the optimal set of variables to predict `MeanAFC`. Report the fitted regression equation and interpret the $R^2$ value in context.
+
+```{r}
+ols_step_both_aic(mlm_fertility)
+```
+
+**Ans: \textcolor{blue}{The optimal variables to predict MeanAFC under AIC criteria are Oocytes, MaxDailyGn, E2, and FSH. $\hat{MeanAFC} = 18.801 + 0.379 \times Oocytes - 0.017 \times MaxDailyGn -0.051 \times E2 - 0.372 \times FSH$. The obtained $R^2$ is 0.276, meaning 27.6\% of the variability in MeanAFC can be explained by the model with these 4 predictors.}**
+
+g) Compare your model from (f) to the models from (e). Was the stepwise selection method able to find the best subset of variables for any of the criteria? If so, which one(s)? 
+
+**Ans: \textcolor{blue}{The model obtained from stepwise selection has the same predictors as the model obtained from subset method with criteria Mallow's Cp and Adjusted R-squared.}** 
+
+h) Decide on the final model you would want to use to predict `MeanAFC` and justify why you choose it. Are the variables for the best model the same as the ones you identified in part (a)?
+
+**Ans: \textcolor{blue}{I would use the model selected by Adjusted R-squared criteria produced using the subset method. Because the model has 4 predictors which is not too complicated and it ensures higher explaining power of the selected model after accounting for the added complexity. In part (a) I identified correlated predictors and not all of the them were selected in the final model.}**
+
+i) What do these analyses tell you about the important predictors of fertility (think about directionality of coefficients and significance level)?
+
+**Ans: \textcolor{blue}{The MeanAFC increases as Oocytes value increases with a coefficient that is significant (t-score 5.995). As the value for MaxDailyGn increases the value for MeanAFC decreases with a significant coefficient (t-score -5.113). Also as the value of E2 and FSH increases the value of MeanAFC decreases with significant oefficient (t-scores -2.214 and -1.815 consecutively).}**
+
+j) Note that the methods above provide nice options for choosing among a large set of potential predictors.  However, we were not able to consider things like interaction terms.  Consider a model for `MeanAFC` with `Oocytes`, `MaxDailyGn`, and their interaction.  Create a plot illustrating their interaction, and then interpret the interaction term in context, recognizing that it involves two quantitative variables.
+
+```{r}
+
+#creating the model with interaction 
+mlm_interaction <- lm(MeanAFC~Oocytes+MaxDailyGn+Oocytes:MaxDailyGn, data = Fertility)
+summary(mlm_interaction)
+
+```
+
+```{r}
+# Use intercept and slope values calculated above
+ggplot(data = Fertility, aes(y = MeanAFC, x = MaxDailyGn)) + 
+  geom_point() +
+  geom_abline(intercept = 12.65+0.6*7, slope = -0.0133212 - 0.0005652*7, 
+              linetype = 1, color = "red") +    # Solid line, Oocytes at 25th
+  geom_abline(intercept = 12.65+0.6*15, slope = -0.0133212 - 0.0005652*15,
+              linetype = 2, color = "blue")     # Dashed line, Oocytes at 75th
+```
+
+
+
+```{r}
+summary(Fertility$Oocytes)
+```
+
+**Ans: \textcolor{blue}{-0.0133212 - 0.0005652*7 is the slope for MaxDailyGn when Oocytes is in 25th percentile. -0.0133212 - 0.0005652*15 is the slope for MaxDailyGn when Oocytes is in 75th percentile.}**
+
+-------------------------------
+**Save for HW7**
+-------------------------------
+
+## 3) Guided Exercise 9.43: THC vs. prochlorperazine (p.450)
+
+```{r}
+data("ChemoTHC")
+chemo <- as_tibble(ChemoTHC)
+chemo
+
+# Build data set for chemo example
+chemo_full <- tibble(treatment = c(rep("THC", 79), 
+                                   rep("Prochlorperazine", 78)),
+  effectiveYN = c(rep("Yes", 36), rep("No", 43), 
+                rep("Yes", 16), rep("No", 62))) %>%
+  mutate(thc = ifelse(treatment == "THC", 1, 0),
+         effective = ifelse(effectiveYN == "Yes", 1, 0))
+chemo_full
+
+two_by_two <- table(chemo_full$treatment, chemo_full$effectiveYN)
+two_by_two
+addmargins(two_by_two)
+```
+
+a) Find the proportion of patients in each of the sample groups for which the treatment was effective.
+
+b) Fit a binary logistic regression model to predict `effectiveYN` using `treatment` as a binary predictor.  Give the logit form of the fitted model.
+
+c) Use the model in (b) to predict the odds and the probability of effectiveness for each of the two drugs.  Compare predicted proportions to the sample proportions in (a).
+
+d) Find the odds ratio comparing the effectiveness of THC to prochlorperazine based on the binary logistic regression model from (b).  Interpret this odds ratio in context.
+
+e) Illustrate the relationship between treatment and effectiveness with a segmented bar chart.

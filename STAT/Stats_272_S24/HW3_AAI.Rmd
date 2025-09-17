@@ -1,0 +1,232 @@
+---
+title: 'Stat 272: Homework #3'
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  html_document: default
+  word_document: default
+geometry: "left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm"
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, setup, include=FALSE}
+# Load necessary libraries
+library(ggResidpanel)
+library(GGally)
+library(mosaic)
+library(tidyverse)
+library(Stat2Data)
+
+# Load necessary data
+data("TextPrices")
+TextPrices <- as_tibble(TextPrices)
+
+data("LewyBody2Groups")
+dementia <- as_tibble(LewyBody2Groups)
+
+pace <- read_csv("~/Stats 272 S24/Class/Data/paceoflife.csv")
+```
+
+
+## 1) Guided Exercise 2.44: Textbook prices (continued) (p.82)
+Complete all parts.
+
+**a)**
+
+```{r}
+lm_textbook <- lm(Price~Pages, data = TextPrices)
+book_450 <- data.frame(Pages = 450)      
+predict(lm_textbook, book_450, interval = "confidence")  
+
+```
+
+**Ans: \textcolor{blue}{We are 95\% confident that the mean price of a 450-page textbook in the population will be between \$51.73 to $74.02.}**
+
+**b)** 
+
+```{r}
+predict(lm_textbook, book_450, interval = "prediction") 
+```
+
+**Ans: \textcolor{blue}{We are 95\% confident that the price of a particular 450-page textbook in the population will be between \$00.90 to $124.85.}**
+
+**c)**
+
+```{r}
+conf_mid <-  51.73074 + (74.02024 - 51.73074)/2
+conf_mid
+
+pred_mid <-  0.9035981 + (124.8474 - 0.9035981)/2
+pred_mid
+
+```
+
+**Ans: \textcolor{blue}{The midpoints are the same 62.88 which is the predicted value because both of the intervals are calculated based on how far can the mean/actual values be from the predicted b\value on BOTH SIDES. So the distance from the predicted value is equal on both sides in a normally distributed population.}**
+
+
+**d)**
+
+```{r}
+conf_width <-  (74.02024 - 51.73074)
+conf_width
+
+pred_width <-  (124.8474 - 0.9035981)
+pred_width
+```
+
+
+**Ans: \textcolor{blue}{The interval for the confidence interval is smaller than the interval for prediction interval. This makes sense because for confidence interval the variability is measured from the mean but in prediction interval takes into account both the variability of the data and the uncertainty associated with estimating individual observation.}**
+
+**e)**
+
+**Ans: \textcolor{blue}{The closer the number of pages to the mean number of pages in the sample the shorter the range for confidence/prediction intervals. Because naturally under the normality assumption the variability around the mean value is the lowest. The less the variability the shorter the interval.}**
+
+**f)**
+
+```{r}
+book_1500 <- data.frame(Pages = 1500)      
+predict(lm_textbook, book_1500, interval = "prediction")  
+
+TextPrices %>% 
+  ggplot(aes(Price, Pages))+
+  geom_point()
+max(TextPrices$Pages)
+min(TextPrices$Pages)
+```
+
+**Ans: \textcolor{blue}{As we can see from the scatter plot the range of pages in the sample is from 51-1060. Predicting for a value that is outside the range of our sample is not recommended. Therefore, I am not going to rely on the prediction interval for the price of a book with 1500 pages because it is outside of the sample range.}**
+
+
+## 2) Guided Exercise 3.24: Dementia (p.145)
+Complete all parts.
+
+**a)**
+
+```{r}
+dementia %>% 
+  ggplot(aes(APC, MMSE, col = Type))+
+  geom_point()+
+  labs(title = "APC vs MMSE based on dementia type.", col = "Dementia Type", y = "Change in functional performance (MMSE).", x = "Percent Change in Gray Matter (APC).")
+```
+
+
+**Ans: \textcolor{blue}{From the above scatterplot we can see an obvious positive relationship between Percent change in Gray matter (APC) and the cognitive function change (MMSE). A decrease in the gray matter correlates to a decrease in functional ability. We can also see that the two different types of dementia have two different distribution. The subjects with only Lewy Body Dementia seem to have lower decrease in gray matter and in turn lower functional decrease. There is one outlier with -1 APC but lower than -8 in MMSE which is clearly outside of the data trend.}**
+
+
+**b)**
+
+```{r}
+lm_dementia <- lm(MMSE~APC, data = dementia)
+summary(lm_dementia)
+
+```
+
+
+**Ans: \textcolor{blue}{From the summary of the linear model we can see that the slope of the model is 1.75 and the associated p-value for that slope is 0.0003 which is less than 0.05 which is our regular significance threshold. Therefore, we can say that the true slope for the target population is not 0. Also the R-squared value is 0.299 means that about 30\% of the variations in the MMSE score can be explained by using the APC scores. Therefore, we can say that there is indeed a linear association between the two variables.}**
+
+
+**c)**
+
+```{r}
+lm_multiple_dementia <- lm(MMSE~APC+Type, data = dementia)
+summary(lm_multiple_dementia)
+
+```
+
+**Ans: \textcolor{blue}{The equations derived from the model summary are below:}**
+
+* **\textcolor{blue}{DLB/AD: $\hat{MMSE} = -0.9433 - 1.3135 + 1.5015 \times APC$}**
+* **\textcolor{blue}{DLB: $\hat{MMSE} = -0.9433 + 1.5015 \times APC$}**
+
+## 3) Pace of Life and Heart Disease
+Answer parts (a)-(i) below.  Relevant data are stored as **paceoflife.csv**, and the motivating article can be found on moodle.  
+
+Some believe that individuals with a constant sense of time urgency (often called type-A behavior) are more susceptible to heart disease than are more relaxed individuals. Although most studies of this issue have focused on individuals, some psychologists have investigated geographical areas. They considered the relationship of city-wide heart disease rates and general measures of the pace of life in the city. For each region of the United States (Northeast, Midwest, South, and West) they selected three large metropolitan areas, three medium-size cities, and three smaller cities. In each city they measured three indicators of the pace of life. The variable `walk` is the walking speed of pedestrians over a distance of 60 feet during business hours on a clear summer day along a main downtown street. `bank` is the average time a sample of bank clerks takes to make change for two \$20 bills or to give \$20 bills for change. The variable `talk` was obtained by recording responses of postal clerks explaining the difference between regular, certified, and insured mail and by dividing the total number of syllables by the time of their response. The researchers also obtained the age-adjusted death rates from ischemic heart disease (a decreased flow of blood to the heart) for each city (`heart`). (Data from R. V. Levine, “*The Pace of Life*,” American Scientist 78 (1990): 450-9.) The variables have been standardized on a 0-40 scale, so there are no units of measurement involved. 
+
+After loading the data set **paceoflife.csv** into R, we will use multiple regression modeling to predict standardized heart rate based on standardized talking, walking, and banking speeds.
+
+a)	Create a matrix of scatterplots of the four variables.  Which variables appear to have a linear (or other) relationship with the response?  
+
+```{r}
+pace %>%
+  select(BANK, WALK, TALK, HEART) %>%
+  ggpairs()
+```
+
+
+**Ans: \textcolor{blue}{The variable Bank and variable Walk seems to have somewhat linear relationship with the response variable Heart. The relationship between Bank and Heart is not that obvious. But the scatterplot for Walk and Heart shows observable upward linear trend.}**
+
+b)	Find a matrix of correlations among all the variables in this dataset. Compare these results with your visual analysis in (a). Which explanatory variable has the highest correlation with heart rate? Which has the lowest? Is this consistent with your visual assessment?  Are there any highly correlated pairs of predictors?
+
+```{r}
+pace %>%
+  select(BANK, WALK, TALK, HEART) %>%
+  cor()
+```
+
+**Ans: \textcolor{blue}{Among the three explanatory variables (BANK, WALK, TALK) WALK has the highest correlation coefficient with HEART which is 0.348 and the second highest is the correlation between BANK and HEART which is 0.318. The TALK variable has the lowest correlation with HEART which is 0.099. This is consistent with my visual assesment in a where I observed possible correlation between BANK \& HEART and WALK \& HEART. All the correlations are somewhat weak and there are no highly correlated WALK \& TALK and BANK \& TALK are somewhat correlated pairs of predictors.}**
+
+c)	Fit a model of `heart` regressed on `bank`, `walk`, and `talk`. Write the equation for the least squares regression line.
+
+```{r}
+lm_multiple_heart <- lm(HEART~WALK+TALK+BANK, data = pace)
+summary(lm_multiple_heart)
+```
+
+* **\textcolor{blue}{Equation: $\hat{HEART} = 3.1787 + 0.4516 \times WALK - 0.1796 \times TALK + 0.4052 \times BANK$}**
+
+d)	Interpret the estimated multiple regression slope coefficients for `bank` in the context of this problem.
+
+**Ans: \textcolor{blue}{The estimated multiple regression coefficient for BANK is 0.4052. This means for 1 unit increase in the average time taken by bank clerks to make change for two \$20 bills or to give \$20 bills for change increases the age-adjusted death rates from ischemic heart disease by 0.4052 unit after accounting for the variables WALK and TALK.}**
+
+e)	What is the expected standardized heart rate for a city with average measures of `bank`, `walk`, and `talk`?  How about the expected heart rate for a city with average measures of `walk` and `talk`, but whose time to make change at the bank was 1 unit above the average?  How does the difference between your two answers relate to (d)?
+
+```{r}
+summary(pace)
+```
+
+
+```{r}
+avg_walk_bank_talk <- data.frame(BANK = 26.36, WALK = 21.42, TALK = 20.75)      
+predict(lm_multiple_heart, avg_walk_bank_talk, interval = "prediction") 
+
+
+avg_walk_bank1_talk <- data.frame(BANK = 26.36 + 1, WALK = 21.42, TALK = 20.75)      
+predict(lm_multiple_heart, avg_walk_bank1_talk, interval = "prediction") 
+
+difference = 10.28128 - 9.884169
+difference
+```
+
+
+**Ans: \textcolor{blue}{The observed difference in the predictions is about 0.4 which is the same as the slope for BANK variable. We just proved what we said in (d) that is one unit change in BANK makes 0.4 unit change in HEART while the other variables are kept the same or adjusted for.}**
+
+f)	Write a statement presenting the result of the t-test for the coefficient for `talk` in the context of this problem.
+
+```{r}
+summary(lm_multiple_heart)
+```
+
+**Ans: \textcolor{blue}{The t-score for the coefficient for the variable TALK is -0.808. This implies that under the null hypothesis that the variable TALK does not have any linear relationship with HEART variable the observed coefficient is only -0.808 standard error away from the mean coefficient which is 0. We would expect to see this observed coefficient just by random chance.}**
+
+g)	Write a statement interpreting the 95% confidence interval for the coefficient for `walk` in the context of this problem.
+
+```{r}
+confint(lm_multiple_heart)
+```
+
+**Ans: \textcolor{blue}{We are 95\% confident that the true coefficient for the WALK variable in the target population is in between 0.042435106 to 0.8607670. SInce the value 0 is not within the interval we say that the observed coefficient is unlikely ue to random chances. There exists a linear relationship.}**
+
+h)	Report and interpret the R-squared value for this model.
+
+```{r}
+summary(lm_multiple_heart)
+```
+
+**Ans: \textcolor{blue}{The obtained R-squared is 0.2236. Which means that the three variables combined in the model can explain about 22.36\% of the variation in the HEART variable.}**
+
+i)	Thoughtfully discuss the scope of inference. What can you conclude from this analysis? Is there evidence that city-wide heart disease rates are related to general measures of the pace of life in the city? Explain whether these results can suggest that individuals with type-A behavior are more susceptible to heart disease? 
+
+**Ans: \textcolor{blue}{It is an observational study from what I have understood by reading the description here. Therefore we can not conclude any causation from this study. So we can not infer that individuals with type-A behavior are more succeptible to heart disease. From the study we can say that there seem to be a linear relationship between WALK \& HEART and BANK \& HEART which is unlikely due to random chances. Further study is needed to infer more details about the underlying causes and features of the observed relationships.}*

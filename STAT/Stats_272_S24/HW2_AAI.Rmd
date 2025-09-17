@@ -1,0 +1,339 @@
+---
+title: 'Stat 272: Homework #2'
+subtitle: 'Al Ashir Intisar'
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  html_document: default
+  word_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, include = FALSE}
+library(mosaic)
+library(ggResidpanel)
+library(tidyverse)
+library(Stat2Data)
+
+# Load data from Stat2Data package
+data("TextPrices")
+TextPrices <- as_tibble(TextPrices)
+
+data("PalmBeach")
+PalmBeach <- as_tibble(PalmBeach)
+```
+
+For homework assignments, you only need to submit your knitted pdf file to Moodle, but be sure your RMarkdown file is saved and accessible in your Submit folder on the RStudio server. Be sure to include all of your R code, in addition to your output, plots, and written responses. Read each question carefully, and be sure your written responses are thorough, succinct, and clear, with careful use of statistical language. Finally, be sure to check your assignment prior to submission; don't just assume it knitted okay.
+
+### 1) Open-ended Exercise 1.44: Textbook prices (p.57)
+
+Complete parts (a)-(c) in the book and (d)-(f) below:
+
+**(a)**
+
+```{r}
+TextPrices %>% 
+  ggplot(aes(Pages, Price))+
+  geom_point()+
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+
+**Ans: \textcolor{blue}{From the scatterplot we can see that there is a obvious linear trend between the page number and the price of the book. As the page number of a book goes up the price of the book goes up as well. There is potentially a strong positive relationship between these two variables. Which means the page number could potentially be used to predict the price of the book.}**
+
+
+**(b)**
+
+```{r}
+price_lm <- lm(Price ~ Pages, data = TextPrices)
+summary(price_lm)
+```
+
+
+**Ans: \textcolor{blue}{Equation: $\hat{Price} = -3.42231 + 0.14733 \times Pages$}**
+
+
+**(c)**
+
+```{r}
+resid_panel(price_lm)
+```
+
+* **\textcolor{blue}{Linearity: From the Q-Q plot we can see that the residuals are mostly very close to the fitted linear model except few deviation on each end. I believe the deviations are not extreme enough to say the trend is not linear. Therefore, I think the linearioty condition is met in this scenario.}**
+
+* **\textcolor{blue}{Equal Variance: From the residual plot above we can see that the residuals mostly stay within a constant distance from the fitted model. If we look really carefully we might see that the distance of the residuals from the fitted line on average could be slightly more and the price gets higher. But I believe this trend is not strong enough to disqualify the equal variance condition.}**
+
+* **\textcolor{blue}{Normality: The histogram of the residuals shows a very close to normal distribution without strong skews. Therefore, the normality condition is met.}**
+
+* **\textcolor{blue}{Independence: There is no reason to believe that the price of one book is dependent on the price of another book. Therefore, I would say the independence requirement is satisfied.}**
+
+d)  Are there any potential leverage points? If so, which point(s)? If not, why not?
+
+```{r}
+TextPrices %>% 
+  ggplot(aes(Pages, Price))+
+  geom_point()+
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+**Ans: \textcolor{blue}{From the scatter plot above we can see that there is no point with extreme number of Pages that is unusually far from the rest of the data points. Therefore, I would say there is no obvious leverage point in this case.}**
+
+e)  Are there any outliers? If so, which point(s)? Produce plots of standardized residuals to investigate this question.
+
+```{r}
+TextPrices_resid <- TextPrices %>% 
+  mutate(resid1 = price_lm$residuals, 
+         fit1 = price_lm$fitted.values)
+
+ggplot(data = TextPrices_resid, aes(x = fit1, y = resid1)) +
+  geom_point() +
+  geom_smooth(se = FALSE) +
+  geom_hline(yintercept = 0) +
+  labs(title = "Residual Plot",
+       x = "Fitted Values",
+       y = "Residuals")
+
+ggplot(data = TextPrices_resid, aes(x = resid1)) +
+  geom_histogram() +
+  labs(title = "Histogram of model residuals")
+
+
+sd(TextPrices_resid$resid1)
+
+```
+
+
+**Ans: \textcolor{blue}{From the Fitted vs rerisual plot we can see that all points are close to the fitted line within a reasonable distance from the line. And from the histogram of the residuals we can see that there is no residuals that are more than 3 sd (29) away from the mean residual. Therefore, this dataset does not contain any outliers.}**
+
+f)  Is there any evidence that Book #24 (with 1060 pages) is an influential point? Compare fitted models with and without this book to address this question.
+
+```{r}
+with_24 <- TextPrices
+without_24 <- TextPrices %>% 
+  filter(Pages != 1060)
+
+with_24 %>% 
+  ggplot(aes(Pages, Price))+
+  geom_point()+
+  geom_smooth(method = "lm", se = FALSE)+
+  geom_smooth(data = without_24, method = "lm", se = FALSE, col = "red")
+
+lm_with_24 <- lm(Price ~ Pages, data = with_24)
+summary(lm_with_24)
+
+lm_without_24 <- lm(Price ~ Pages, data = without_24)
+summary(lm_without_24)
+```
+
+
+**Ans: \textcolor{blue}{From the graph of the two fitted models with and without book number 24 with 1060 pages we can see that slope of the fitted line does not really change that much. The actual change in the slope was 0.005 which is very small for this example. Therefore, I would say book number 24 with 1060 pages is not an influential point in this context. It could becaome an influential point if we try to predict prices for book with page number greater than 1060.}**
+
+
+### 2) Guided Exercise 2.16: Textbook prices (continued) (p.78)
+
+Complete parts (a)-(b) in the book and (c)-(e) below:
+
+**(a)**
+
+* **\textcolor{blue}{$H_0$: There is no linear relationship between the page number and the price of a book. Meaning the slope is 0 for the target population of books.}**
+* **\textcolor{blue}{$H_a$: There is a linear relationship between the page number and the price of a book. Meaning the true slope is not 0 for the target population of books.}**
+
+```{r}
+summary(lm_with_24)
+```
+
+**Ans: \textcolor{blue}{From the summary of the linear model we can see that the $R^2$ value is 0.68 which means that 68\% of the variation in the prices of books can be explained using the fitted linear model. The t-score for the slope is 7.65 which means that the observed slope is more than 7 sd away from the mean of the slopes observed under the null hypothesis. Therefore, it is very very unlikely to get this slope just by random chances. Observing the p-value also confirms that the observed slope is not due to random chances. Therefore, we reject the null hypothesis in favor of the alternative hypothesis. There is a linear relationship between page number and price of a book and the page number can be used to help predict the price.}**
+
+
+**(b)**
+
+```{r}
+confint(lm_with_24)
+```
+
+
+**Ans: \textcolor{blue}{We are 95\% confident that the true slope for the target population of books lies between 0.108 to 0.187. Which means in the target population of books as the number of page increase by one the increase in the average price lies between \$0.108 to \$0.187 95\% of the time.}**
+
+c)  Create a new variable by centering the number of pages on the mean number of pages in this study (465). Why is centering a good idea in this case?
+
+```{r}
+TextPrices_cntr <- TextPrices %>% 
+  mutate(centered_pages = Pages - 465)
+head(TextPrices_cntr)
+```
+
+**Ans: \textcolor{blue}{In our previous model the intercept was negative wich does not help to get any real world interpretation. A book can't have -3 pages. But when we center the pages variable we can then interpret the intercept as the price of the book wit average number of pages in the sample or estimate of it in the population.}**
+
+d)  Fit a new model with Price as the response and your centered variable from (c) as the explanatory. Report the equation of your fitted line, and interpret the *intercept* in context.
+
+```{r}
+centered_lm <- lm(Price ~ centered_pages, data = TextPrices_cntr)
+
+summary(centered_lm)
+```
+
+* **\textcolor{blue}{$\hat{price} = 65.1 + 0.147 \times Centered\_Pages$}**
+* **\textcolor{blue}{The intercept is 65.1 which represents the price of the book with average number of pages in the sample and the estimate of that for the target population of books.}**
+
+e)  Your slope in (d) should match your slope from (b). Explain why this is true.
+
+**Ans: \textcolor{blue}{The slope from d is indeed same as the slope from b which is 0.14733. This is true because by centering we are not changing the data points in y-axis (response variable) rather just shifting all the points in the x-axis (explanatory variable). Therefore the rate of change remains same in both models.}**
+
+### 3) Example 1.11: Butterfly ballot (p.46)
+
+Answer parts (a)-(h);
+
+The background for this problem is provided on page 46, and the data is stored as PalmBeach in the Stat2Data library. One theory espoused by some observers of the 2000 U.S. Presidential Election is that errors induced by the butterfly ballot in Palm Beach County, Florida, may have swung the entire 2000 Presidential election. We are going to specifically investigate the question of whether or not the butterfly ballot caused voters to accidentally vote for Pat Buchanan instead of Al Gore in Palm Beach County. The angle we'll take is to use regression techniques to establish a relationship between the number of Buchanan votes and the number of Bush votes in Florida counties, and then show that the number of Buchanan votes in Palm Beach County does not follow that pattern, even after accounting for uncertainty in predictions.
+
+a)  Produce a scatterplot with Buchanan votes by county as the response and Bush votes as the explanatory variable. Note that Palm Beach County is an obvious outlier in this relationship; **remove Palm Beach County so that we can build a model without it.**
+
+```{r}
+PalmBeach %>% 
+  ggplot(aes(Bush, Buchanan))+
+  geom_point()+
+  labs(title = "Votes for Bush vs Buchanan in Florida counties.")
+
+PalmBeach_without <- PalmBeach %>% 
+  filter(Buchanan < 2000)
+
+PalmBeach_without %>% 
+  ggplot(aes(Bush, Buchanan))+
+  geom_point()+
+  labs(title = "Votes for Bush vs Buchanan in Florida counties with PalmBeach.")
+```
+
+
+b)  After removing Palm Beach County, fit a regression line predicting Buchanan votes as a function of Bush votes. Assess the assumptions for our simple linear regression model using residual plots.
+
+```{r}
+PalmBeach_without %>% 
+  ggplot(aes(Bush, Buchanan))+
+  geom_point()+
+  geom_smooth(method = "lm", se = FALSE)
+
+lm_without_palm <- lm(Buchanan~Bush, data = PalmBeach_without)
+summary(lm_without_palm)
+
+
+resid_panel(lm_without_palm)
+
+```
+
+
+* **\textcolor{blue}{Equation: $\hat{Buchanan Vote} = 65.57 + 0.003482 \times Votes for Bush$}**
+
+* **\textcolor{blue}{Linearity: From the Q-Q plot we can see that the data point is not quite linear on the both sides of the fitted line. Therefore, the linearity condition is violated.}**
+* **\textcolor{blue}{Independence: Assuming votes in one county does not affect the votes in another county in Florida I believe the independence conditions is satisfied.}**
+* **\textcolor{blue}{Normality: From the histogram of risifuals of the model we can see that the distribution is almost normal except 1 residual on the far left tail. But i think the normality condition is still satisfied since most of the residuals follow that distribution.}**
+* **\textcolor{blue}{Equal Variance: The Residual vs Fitted line plot shows that the variance increases as the predicted values increase. Therefore, the equal variance condition is not satisfied.}**
+
+c)  Log transform Bush votes and refit the regression model, still using untransformed Buchanan votes as the response. Interpret the slope of this model in context.
+
+```{r}
+PalmBeach_without %>% 
+  ggplot(aes(log(Bush), Buchanan))+
+  geom_point()+
+  geom_smooth(method = "lm", se = FALSE)
+
+lm_log_bush <- lm(Buchanan~log(Bush), data = PalmBeach_without)
+summary(lm_log_bush)
+
+
+resid_panel(lm_log_bush)
+```
+
+**Ans: \textcolor{blue}{The slope is 127.48 which means as the votes for Bush doubles the average votes for Buchanan changes by 127(log2).}**
+
+d)  Log transform both variables (Buchanan votes and Bush votes) and refit the regression model. Assess the assumptions for the regression model, showing graphs or numerical summaries when appropriate. **Use this model to answer the remaining questions.**
+
+```{r}
+PalmBeach_without %>% 
+  ggplot(aes(log(Bush), log(Buchanan)))+
+  geom_point()+
+  geom_smooth(method = "lm", se = FALSE)
+
+lm_log_bush_buch <- lm(log(Buchanan)~log(Bush), data = PalmBeach_without)
+summary(lm_log_bush_buch)
+
+
+resid_panel(lm_log_bush_buch)
+```
+
+
+* **\textcolor{blue}{Linearity: From the Q-Q plot we can see that the data points are very close to the fitted line throughout. Therefore, the linearity condition is met.}**
+* **\textcolor{blue}{Independence: Assuming votes in one county does not affect the votes in another county in Florida I believe the independence conditions is satisfied.}**
+* **\textcolor{blue}{Normality: From the histogram of risifuals of the model we can see that the distribution is very normal without skewness. Therefore, the normality condition is satisfied.}**
+* **\textcolor{blue}{Equal Variance: The Residual vs Fitted line plot shows that the variance does not change as the predicted values increase. Therefore, the equal variance condition is also satisfied.}**
+
+
+e)  What is the equation of the least-squares regression line from (d)? Interpret the slope and its 95% confidence interval in the context of the problem.
+
+```{r}
+confint(lm_log_bush_buch)
+```
+
+
+* **\textcolor{blue}{Equation: $\hat{log(Buchanan Vote)} = -2.34 + 0.73 \times log(Votes for Bush)$}**
+* **\textcolor{blue}{Slope: The slope is 0.73 which means doubling the votes for Bush changes the votes for Buchanan by the factor of $2^{0.73}$.}**
+* **\textcolor{blue}{Confidence Interval: We are 95\% confidence that when the votes for Bush is doubled the votes for Buchanan changes by a factor of $2^{0.66}$ to $2^{0.8}$.}**
+
+f)  What is the predicted number of Buchanan votes in Palm Beach County based on your model?
+
+```{r}
+bush_votes = PalmBeach %>% filter(PalmBeach$County == "PALM BEACH")
+
+log_buchanan = -2.34 + 0.73 * log(bush_votes$Bush)
+log_buchanan
+exp(log_buchanan)
+```
+
+**Ans: \textcolor{blue}{The predicted votes for Buchanan in Palm Beach county is 587 approximately.}**
+
+
+g)  Expand on (f) by generating and interpreting a prediction interval for the number of Buchanan votes in Palm Beach County based on the number of Bush votes cast there (remembering any necessary back transformations).
+
+**Ans: \textcolor{red}{It's optional!!}**
+
+h)  Explain what the following R code does by describing in detail what each of the 3 parts do in a few sentences each (be sure to remove "eval = FALSE" when you knit it).
+
+```{r}
+pred_range <- tibble(logBush = seq(7, 12.7, length = 1000)) %>%
+  mutate(Bush = exp(logBush))
+```
+
+**Ans: \textcolor{blue}{The code section above creates a dataset with random number of votes for Bush. It uses a random number egenrator to first generate the log of the votes then exponentiate that value to vote number. Creates tibbles with two columns and 1000 rows.}**
+
+```{r}
+# note: model3 comes from YOUR ANSWER to part (d)
+PIs <- predict(lm_log_bush_buch, pred_range, interval = "prediction") %>%
+  as_tibble() %>%
+  mutate(fitted_Buchanan = exp(fit),
+         lowerPI_Buchanan = exp(lwr),
+         upperPI_Buchanan = exp(upr)) %>%
+  bind_cols(pred_range)
+```
+
+**Ans: \textcolor{blue}{The code section above uses the model created in question d to predict the votes for Buchanan for the dummy dataset created in the previous section along with the prediction intervals. And then it combines those predictions and intervals with with the dummy dataset.}**
+
+```{r}
+ggplot(data = PalmBeach, mapping = aes(x = Bush, y = Buchanan)) +
+  geom_point() +
+  geom_line(data = PIs, mapping = aes(x = Bush, y = fitted_Buchanan, 
+            color = "fit")) +
+  geom_line(data = PIs, mapping = aes(x = Bush, y = lowerPI_Buchanan, 
+            color = "PI")) +
+  geom_line(data = PIs, mapping = aes(x = Bush, y = upperPI_Buchanan, 
+            color = "PI")) +
+  geom_label(data = subset(PalmBeach, County == "PALM BEACH"),
+            aes(label = County), nudge_x = 35000) +
+  scale_color_manual(values = c('PI' = 'darkblue', 'fit' = 'red')) +
+  labs(y = "Buchanan votes", x = "Bush votes", color = "Prediction Bounds")
+```
+
+**Ans: \textcolor{blue}{The code section above then uses that created dataset from the previous section to generate a graph of the actual votes and superimposes the fitted line for predicted values (red line) and their prediction intervals (blue lines).}**
+
+i)  Thoughtfully discuss what you can conclude from this analysis. For instance, did something unusual occur in Palm Beach County? Is there evidence that the butterfly ballot caused voters to accidentally vote for Pat Buchanan instead of Al Gore in Palm Beach County in 2000? Is it likely that Al Gore really should have won Florida (he lost by 537 votes) and thus the entire election?
+
+**Ans: \textcolor{blue}{From the above graph of 95% prediction confidence interval we can see than the predicted votes for Buchana would still be way less than the observed votes 3407. We can not conclude any causal relationship because the study is not a randomized experiment but rather an observation. It is very likely that the observed votes for Buchanan in Palm Beach County is unusual but we do not know that if not Buchanan those votes would have gone to Al Gore.}**

@@ -1,0 +1,344 @@
+---
+title: 'Stat 272: Homework #8'
+subtitle: 'Al Ashir Intisar'
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  html_document: default
+  word_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+For homework assignments, you only need to submit your knitted pdf file to Moodle, but be sure your RMarkdown file is saved and accessible in your Submit folder on the RStudio server. Be sure to include all of your R code, in addition to your output, plots, and written responses. Read each question carefully, and be sure your written responses are thorough, succinct, and clear, with careful use of statistical language.  Finally, be sure to check your assignment prior to submission; don't just assume it knitted okay.
+
+```{r, include=FALSE}
+library(mosaic)      # for favstats()
+library(Stat2Data)   # for emplogitplot1()
+library(tidyverse)   # ALWAYS load last
+```
+
+## Birdkeeping and Lung Cancer: A Retrospective Observational Study 
+
+A 1972-1981 health survey in The Hague, Netherlands, discovered an association between keeping pet birds and increased risk of lung cancer.  To investigate birdkeeping as a risk factor, researchers conducted a case-control study of patients in 1985 at four hospitals in The Hague.  They identified 49 cases of lung cancer among patients who were registered with a general practice, who were age 65 or younger, and who had resided in the city since 1965.  Each patient (case) with cancer was matched with two control subjects (without cancer) by age and sex.  Further details can be found in P.A. Holst, et al., “For Debate: Pet Birds as an Independent Risk Factor for Lung Cancer,” *British Medical Journal* 297 (1988): 13-21.  A link to this article can be found on Moodle, and associated data can be found in *birdkeeping.csv* in the Class > Data folder.
+
+Age, sex, and smoking history are all known to be associated with lung cancer incidence.  Thus, researchers wished to determine after age, sex, socioeconomic status, and smoking have been controlled for, is an additional risk associated with birdkeeping?
+
+Data includes the following subset of variables:
+
+- `female` = sex (1 = Female, 0 = Male)
+
+- `age` = age, in years
+
+- `highstatus` = socioeconomic status (1 = High, 0 = Low), determined by the occupation of the household’s primary wage earner
+
+- `yrsmoke` = years of smoking prior to diagnosis or examination
+
+- `cigsday` = average rate of smoking, in cigarettes per day
+
+- `bird` = indicator of birdkeeping (1 = Yes, 0 = No), determined by whether or not there were caged birds in the home for more than 6 consecutive months from 5 to 14 years before diagnosis (cases) or examination (controls)
+
+- `cancer` = indicator of lung cancer diagnosis (1 = Cancer, 0 = No Cancer)
+
+```{r}
+birds <- read_csv("~/Stats 272 S24/Class/Data/birdkeeping.csv") %>%
+  mutate(sex = ifelse(female == 1, "Female", "Male"),
+         socioecon_status = ifelse(highstatus == 1, "High", "Low"),
+         keep_bird = ifelse(bird == 1, "Keep Bird", "No Bird"),
+         lung_cancer = ifelse(cancer == 1, "Cancer", "No Cancer"))
+birds
+```
+
+1. Perform an exploratory data analysis to see how each explanatory variable is related to the response (`cancer`).  Summarize each relationship in one sentence.
+
+
+- For quantitative explanatory variables (`age`, `yrsmoke`, `cigsday`), produce a cdplot, a boxplot, and summary statistics by cancer diagnosis.
+
+```{r}
+#quantitative responses 
+
+# cancer vs age
+favstats(age~lung_cancer, data = birds)
+
+# density plots
+ggplot(data = birds, mapping = aes(x = age, color = lung_cancer)) + 
+  geom_density()
+
+#boxplot
+ggplot(data = birds, aes(x = age, y = lung_cancer, fill = lung_cancer))+
+  geom_boxplot()
+```
+
+* \textcolor{blue}{Ans: The median age for cancer group is 58 years as opposed to 59 for no cancer group.} 
+
+```{r}
+# cancer vs year smoke
+favstats(yrsmoke~lung_cancer, data = birds)
+
+# density plot 
+ggplot(data = birds, mapping = aes(x = yrsmoke, color = lung_cancer)) + 
+  geom_density()
+
+# boxplot
+ggplot(data = birds, aes(x = yrsmoke, y = lung_cancer, fill = lung_cancer))+
+  geom_boxplot()
+```
+
+* \textcolor{blue}{Ans: The median years smoked for cancer group is 36 years as opposed to 25 for no cancer group with probality density for cancer diagnosis is higher between 30-45 years of smoking.} 
+
+```{r}
+# cancer vs cigs per day 
+favstats(cigsday~lung_cancer, data = birds)
+
+# density plot 
+ggplot(data = birds, mapping = aes(x = cigsday, color = lung_cancer)) + 
+  geom_density()
+
+# boxplot
+ggplot(data = birds, aes(x = cigsday, y = lung_cancer, fill = lung_cancer))+
+  geom_boxplot()
+
+```
+
+* \textcolor{blue}{Ans: The median cigerrattes smoked per day for cancer group is 20 as opposed to 15 for no cancer group with cancer group having a narrower IQR with outliers more outliers.} 
+
+
+- For categorical explanatory variables (`female` or `sex`, `highstatus` or `socioecon_status`, `bird` or `keep_bird`), produce a segmented bar chart and an appropriate table of proportions showing the relationship with cancer diagnosis.
+
+
+```{r}
+# cancer vs sex
+table(birds$lung_cancer, birds$sex) %>%
+  addmargins() 
+table(birds$lung_cancer, birds$sex) %>%
+  proportions(2) %>% 
+  addmargins()
+ggplot(data = birds, aes(sex, fill = lung_cancer))+
+  geom_bar(position = "fill")
+```
+
+* \textcolor{blue}{Ans: 12 out of 36 female and 37 out of 111 males were diagnosed with lung cancer which is about 33\% for both sexes.}
+
+```{r}
+# cancer vs status
+table(birds$lung_cancer, birds$socioecon_status) %>% 
+  addmargins()
+table(birds$lung_cancer, birds$socioecon_status) %>%
+  proportions(2) %>% 
+  addmargins()
+ggplot(data = birds, aes(socioecon_status, fill = lung_cancer))+
+  geom_bar(position = "fill")
+```
+
+* \textcolor{blue}{Ans: 12 out of 45 patients (26\%) of high status and 37 out of 102 (36\%) patients of low status were diagnosed with lung cancer.}
+
+```{r}
+# cancer vs bird keeping
+table(birds$lung_cancer, birds$keep_bird) %>% 
+  addmargins()
+table(birds$lung_cancer, birds$keep_bird) %>%
+  proportions(2) %>% 
+  addmargins()
+ggplot(data = birds, aes(keep_bird, fill = lung_cancer))+
+  geom_bar(position = "fill")
+```
+
+* \textcolor{blue}{Ans: 33 out of 67 patients (49\%) who keeps bird and 16 out of 80 (20\%) patients who does not keep bird were diagnosed with lung cancer.}
+
+2. In (1), you should have found no relationship between whether or not a patient develops lung cancer and either their age or sex.  Why might this be?  What implications will this have on your modeling?
+
+**Ans: \textcolor{blue}{This is by study design. Each patient with lung cancer were mathced for age and sex with two control subjects who attended the same general practice. In our modelling these two variables are unlikely to be significant predictors in a model.}**
+
+
+3. Based on a two-way table with keeping birds and developing lung cancer from (1), find an unadjusted odds ratio comparing birdkeepers to non-birdkeepers and interpret this odds ratio in context.  (Note: an *unadjusted* odds ratio is found by *not* controlling for any other variables.)  Also, find an analogous relative risk and interpret it in context as well.
+
+```{r}
+table(birds$lung_cancer, birds$keep_bird) %>% 
+  proportions(2) %>% 
+  addmargins()
+
+# odds ration yes_odds/no_odds
+(0.4925373/(1-0.4925373))/(0.2/(1-0.2))
+
+
+model1 <- glm(cancer ~ keep_bird, data = birds, family = binomial(link = "logit"))
+summary(model1)
+
+
+```
+
+**Note: \textcolor{red}{What is analogous relative risk?}**
+
+**Ans: \textcolor{blue}{The odds of getting diagnsed with lunch cancer is 3.88 times higher for patients who keeps birds as opposed to patients who don't keep birds. If patients keep birds their probality of getting diagnosed is 2.5 times higher than patients who does not keep birds.}**
+
+4. Are the elogits reasonably linear relating number of years smoked to the estimated log odds of developing lung cancer?  Demonstrate with an appropriate plot.
+
+```{r}
+model2 <- glm(cancer ~ age, data = birds, family = binomial(link = "logit"))
+summary(model2)
+
+ggplot(birds, aes(x = age, y = exp(-0.585013-(0.001899*age)))) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  xlab("Age of the patients") + ylab("Empirical logits")
+```
+
+**Ans: \textcolor{blue}{The relationship looks very much linear.}**
+
+5. Does there appear to be an interaction between number of years smoked and whether the subject keeps a bird?  Demonstrate with an interaction plot and a coded scatterplot with empirical logits on the y-axis.
+
+```{r}
+model3 <- glm(cancer ~ age+keep_bird+age:keep_bird, data = birds, family = binomial(link = "logit"))
+summary(model3)
+```
+
+
+```{r}
+# interaction plot
+int_plot <- birds %>% 
+  group_by(lung_cancer, keep_bird) %>% 
+  summarise(mean_age = mean(age)) 
+
+ggplot(data = int_plot, aes(y = mean_age, x = lung_cancer, 
+                            color = keep_bird, linetype = keep_bird)) +
+  geom_point() + 
+  geom_line(aes(group = keep_bird)) 
+
+
+# coded scatter plot
+emplogit3 <- birds %>%
+  mutate(age_cuts2 = cut_number(age, 4)) %>% 
+  group_by(age_cuts2, keep_bird) %>%
+  summarise(num_yes = sum(cancer), 
+            n = n(),
+            prop_yes = num_yes / n,
+            midpoint = median(age)) %>%
+  mutate(prop_yes = ifelse(prop_yes == 1 | prop_yes == 0, 
+                           (num_yes + 0.5) / (n + 1), prop_yes),
+         odds = prop_yes / (1 - prop_yes),
+         emplogit = log(odds))
+emplogit3
+
+ggplot(emplogit3, aes(x = midpoint, y = emplogit, color = keep_bird)) +
+  geom_point() +
+  geom_smooth(method = "lm", se = FALSE) +
+  xlab("Median of age group") + ylab("Empirical logits")
+```
+
+**Ans: \textcolor{blue}{There seems to be some interaction but it is not significant (p-value 0.63).}**
+
+Before answering the next questions, fit logistic regression models in R with `cancer` as the response and the following sets of explanatory variables:
+
+- model1 = age, yrsmoke, cigsday, female, highstatus, bird
+
+```{r}
+modeln_1 <- glm(cancer~age+yrsmoke+cigsday+sex+socioecon_status+keep_bird, data = birds, family = binomial(link = "logit"))
+```
+
+
+- model2 = yrsmoke, cigsday, highstatus, bird 
+
+```{r}
+modeln_2 <- glm(cancer~yrsmoke+cigsday+socioecon_status+keep_bird, data = birds, family = binomial(link = "logit"))
+```
+
+
+- model4 = yrsmoke, bird
+
+```{r}
+modeln_4 <- glm(cancer~yrsmoke+keep_bird, data = birds, family = binomial(link = "logit"))
+```
+
+
+- model5 = the complete second order version of model4 (add squared terms and an interaction)
+
+```{r}
+modeln_5 <- glm(cancer~yrsmoke+keep_bird+yrsmoke^2+yrsmoke:keep_bird, data = birds, family = binomial(link = "logit"))
+```
+
+
+- model6 = yrsmoke, bird, yrsmoke:bird
+
+```{r}
+modeln_6 <- glm(cancer~yrsmoke+bird+yrsmoke:bird, data = birds, family = binomial(link = "logit"))
+```
+
+
+
+6. Is there evidence that we can remove age and female from our model?  Perform an appropriate test comparing model1 to model2; give a test statistic and p-value, and state a conclusion in context.
+
+```{r}
+anova(modeln_2, modeln_1, test = "Chisq")
+```
+
+**Ans: \textcolor{blue}{As we can see from the drop in deviance test above the change in devience (-2.5275 for degree of freedom 2) is not significant with p-value 0.2828. The extened model with age and female can be dropped without loosing significant predictability.}**
+
+7. Is there evidence that the complete second order version of model4 improves its performance?  Perform an appropriate test comparing model4 to model5; give a test statistic and p-value, and state a conclusion in context.
+
+```{r}
+anova(modeln_4, modeln_5, test = "Chisq")
+```
+
+**Ans: \textcolor{blue}{As we can see from the drop in deviance test above the change in devience (-0.074355 for degree of freedom 1) is not significant with p-value 0.7851. The complete second order model does not improve the performance significantly.}**
+
+8. Carefully interpret each of the four model coefficients in model6 in context.
+
+```{r}
+summary(modeln_6)
+```
+
+**Ans: \textcolor{blue}{Intercept: When the patient doesn't smoke and doesn't keep birds the odds of getting diagnosed is 0.04984370846. yrsmoke: When the patient does not keep birds for every additional year of smoking the odds of getting disgnosed goes up by 5.5\%. bird: For patients who does not smoke but keeps birds the odds of getting diagnosed is more than 3 times higher compared to patients who don't smoke and don't keep birds. yrsmoke:bird: for patients who keep birds, an additional year of smoking increases the odds of getting diagnosed by 6.5\%.}**
+
+9. If you replaced `yrsmoke` everywhere it appears in model6 with a mean-centered version of `yrsmoke`, tell what would change among these elements: the 4 coefficients, the 4 p-values for coefficients, and the residual deviance.
+
+```{r}
+mean_yrs <- mean(birds$yrsmoke)
+mean_yrs
+
+birds <- birds %>% 
+  mutate(centered_yrs = yrsmoke - mean_yrs )
+
+modeln_6mean <- glm(cancer~centered_yrs+bird+centered_yrs:bird, data = birds, family = binomial(link = "logit"))
+summary(modeln_6mean)
+summary(modeln_6)
+
+```
+
+**Ans: \textcolor{blue}{The intercept and coefficient for bird will change. The p-value associated with the coefficient of bird will change. The residual devience stays the same.}**
+
+10. Model4 is a potential final model based on this set of explanatory variables.  Find and carefully interpret 95% confidence intervals based on profile likelihoods for the coefficients of `yrsmoke` and `bird`. 
+
+```{r}
+confint(modeln_4)
+```
+
+**Ans: \textcolor{blue}{We are 95\% confident that the odds of getting diagnosed with luncg cancer will increase by 2.8\% to 9.8\% for every additional year of smoking. And we are 95\% confident that the odds of getting diagnosed with lung cancer is 2 to 9 times higher for patients with birds as opposed to without birds.}**
+
+11. How does the adjusted odds ratio for birdkeeping from model4 compare with the unadjusted odds ratio you found in (3)?  Is birdkeeping associated with a significant increase in the odds of developing lung cancer, even after adjusting for other factors?
+
+**Ans: \textcolor{blue}{The adjusted odds ratio (coefficient: -1.47555) went up copared to unadjusted odds ratio (coefficient: -1.35644). In both cases bird keeping is significantly associated with odds of developing lung cancer even after adjusting for other factos (p-value 0.000194).}**
+
+12. Create a categorical variable based on `yrsmoke` using the code below and replace `yrsmoke` in model4 with your new variable.  First, interpret the coefficient for `years_factorOver 25 years` in context.  Then tell if you prefer model4 with years smoked as a numeric predictor or model4a with years smoked as a categorical predictor, and explain your reasoning.
+
+```{r}
+birds <- birds %>%
+  mutate(years_factor = cut(yrsmoke, breaks = c(-Inf, 0, 25, Inf),
+            labels = c("No smoking", "1-25 years", "Over 25 years")))
+
+model4a <- glm(cancer ~ years_factor + bird, 
+               family = binomial, data = birds)
+summary(model4a)
+exp(model4a$coefficients)
+```
+
+**Ans: \textcolor{blue}{The odds of getting diagnosed is more than 15 times higher for patients who have been smoking over 25 years as opposed to patients who never smoked after adjusting for bird keeping. I prefer the model with years smoked as categorical variable because it gives us more contextual understanding of relationship between lung cancer and smoking. Also it has Higher AIC score as lower residual devience compared to numeric years smoke model.}**
+
+13. Discuss the scope of inference in this study.  Can we generalize our findings beyond the subjects in this study?  Can we conclude that birdkeeping causes increased odds of developing lung cancer?  Do you have other concerns with this study design or the analysis you carried out?
+
+**Ans: \textcolor{blue}{From the study we can infer than bird keeping is associated with lung cancer and is a potential cause. But since it is a case control study we cannot infer direct causation just based on this study alone. We know bird keeping is associated with increased odds of developping lung cancer but can't say it causes that increased odds. I did not have any other concern based on the analysis I did on the subset of the dataset.}**
+
+14. Read the article that appeared in the British Medical Journal.  What similarities and differences do you see between their analyses and yours?  What are a couple of things you learned from the article that weren’t apparent in the short summary at the beginning of the assignment.
+
+**Ans: \textcolor{blue}{From the short summary the missing participant and their effect in the study was not apparent. The paper did extra analysis to account for missing participants and what their effect would have been for the inferences. And I think this is something I could have done in my analysis.}**
+

@@ -1,0 +1,191 @@
+---
+title: 'Stat 272: Homework #4'
+subtitle: 'Al Ashir Intisar'
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 4.5
+  html_document: default
+  word_document: default
+editor_options: 
+  chunk_output_type: console
+---
+
+For homework assignments, you only need to submit your knitted pdf file to Moodle, but be sure your RMarkdown file is saved and accessible in your Submit folder on the RStudio server. Be sure to include all of your R code, in addition to your output, plots, and written responses. Read each question carefully, and be sure your written responses are thorough, succinct, and clear, with careful use of statistical language.  Finally, be sure to check your assignment prior to submission; don't just assume it knitted okay.
+
+```{r, include=FALSE}
+library(tidyverse)   # always!
+library(mosaic)      # for favstats()
+library(car)         # for vif()
+library(ggResidpanel) # for resid_panel()
+library(GGally)      # for ggpairs()
+library(Stat2Data)   # for data sets
+```
+
+
+## 1) Guided Exercise 3.52: Dementia (continued) (p.151)
+
+Complete parts (a)-(c).  Also, interpret the coefficient from the interaction term in (a) in context.
+
+```{r}
+data("LewyBody2Groups")
+dementia <- as_tibble(LewyBody2Groups)
+```
+
+**(a)**
+
+```{r}
+lm_interaction_dem <- lm(MMSE~APC+Type+APC:Type, data = dementia)
+summary(lm_interaction_dem)
+```
+
+* **\textcolor{blue}{DLB\/AD: $\hat{MMSE} = -0.5846  + 2.3176 \times APC - 1.8513 - 0.9732 \times APC$}**
+* **\textcolor{blue}{DLB: $\hat{MMSE} = -0.5846 + 2.3176 \times APC$}**
+* **\textcolor{blue}{Interaction coefficient: One additional unit in APC score increases MMSE by 2.3176 units when the type of Dementia is just DLB, as opposed to 1.34 units when the type of dementia is both DLB and AD.}**
+
+
+**(b)** 
+
+```{r}
+summary(lm_interaction_dem)
+```
+
+
+**Ans: \textcolor{blue}{From the model summary we can see that the t-score for the interaction coefficient is -0.766. Which means the observed coeffient is only 0.766 sd below from being 0 under the null hypothesis. The associated p-value of 0.449 which is greater than typical significant threshold of 0.05 justifies the insignificance of the observed coefficient. Therefore, we fail to reject the null hypothesis that the interaction term is nor really needed and just the parallel regression lines are adequate in explaining the respknse variable.}**
+
+**(c)**
+
+```{r}
+lm_dementia <- lm(MMSE~APC, data = dementia)
+
+anova(lm_interaction_dem, lm_dementia)
+
+```
+
+**Ans: \textcolor{blue}{Nested F-test: $H_O$: lm\_dementia (reduced) model is enough to explain the response variable vs. $H_A$: lm\_interaction\_dem (full) model with interaction term for type of dementia is significantly better at explaining the response variable. The obtained (F(-2, 37) = 1.342, p = .2744) suggest that a model with indicator variables for dementia type and it's interaction term is not better than a model with only APC as predictor variable. Therefore, we fail to reject the null hypothesis that neither of the terms involving Type is needed and a common regression line is adequate for modelling how MMSE depends on APC.}**
+
+
+## 2) Virtual Used Car Lot  
+
+In 2015, data from cars being sold in Minnesota on cars.com was randomly sampled to form a Virtual Car Lot of 75 cars representing 3 different models; data can be found at **VirtualCarLot3.csv**.  Please use this data to answer the following questions:
+
+```{r, include=FALSE}
+# Load data for this problem
+carlot <- read_csv("~/Stats 272 S24/Class/Data/VirtualCarLot3.csv")
+```
+
+a)	Create a matrix of scatterplots of the three numeric variables (price, age, miles).  What observations can you make from this matrix?
+
+```{r}
+ggpairs(data = carlot[, 3:5])
+```
+
+**Ans: \textcolor{blue}{From the matrix scatterplot above we can see that the numeric variables are all correlated to each other to some extent. The variables 'age' and 'miles' are positively correlated with a correlation of 0.813. On ther other hand the variable pairs 'age' \& 'price' and 'miles' \& 'price' are negatively correlated with correlation of -0.866 and -0.825 respectively.}**
+
+b)	Produce numeric summaries of price, age, and miles by model.  What trends do you observe?
+
+```{r}
+carlot %>% 
+  select(!make) %>% 
+  group_by(model) %>% 
+  summarise_all(list(mean = mean, median = median))
+```
+
+**Ans: \textcolor{blue}{From the summary above we can see that the average age and miles of cars of model Sonata is the lowest (avg. age 3.76, avg. miles 46.5) with the highest average price of 13.9. The cars of model Accord has the highest average age and miles (avg. age 5.8, avg. miles 57.3) and the lowest average price 12.3. And the average age, miles and price of cars of model Golf is in between (avg. age 5.8, avg. miles 57.3, avg. price 13.3).}**
+
+
+c)	Create a coded scatterplot of price vs. mileage by model (so you should have 3 types of points and 3 regression lines on your plot, with a legend to identify the 3 models).  What can you conclude from this coded scatterplot?
+
+```{r}
+carlot %>% 
+  ggplot(aes(miles, price, col = model, shape = model, linetype = model))+
+  geom_point()+
+  geom_smooth(method = "lm", se = FALSE)
+```
+
+
+**Ans: \textcolor{blue}{From this scatterplot we can obviously conclude that the average price of accords at a certain value miles is consistently higher than the average price of Golfs or Sonatas at the same value for miles. Also the trends between the models seems to have slightly different slopes.}**
+
+d)	Run three regression models with price as the response:  
+
+    - Model A = age is the only predictor
+    - Model B = miles is the only predictor
+    - Model C = age and miles are both predictors
+
+    i) Interpret age in context in Model A and Model C.  How do these interpretations differ?  Why does the coefficient not remain the same?
+    ii) Interpret the R-squared value from Model C in context.
+    
+```{r}
+#Model A = age is the only predictor
+lm_age <- lm(price~age, data = carlot)
+summary(lm_age)
+
+#Model B = miles is the only predictor
+lm_miles <- lm(price~miles, data = carlot)
+summary(lm_miles)
+
+#Model C = age and miles are both predictors
+lm_age_miles <- lm(price~age+miles, data = carlot)
+summary(lm_age_miles)
+
+```
+
+* **\textcolor{blue}{i) For model A when age is the sole predictor, one extra year will decrease the average price by 1.00643 thousand dollars. As opposed to model C when both age and miles are predictors, one extra year will decrease the average price by 0.67063 thousand dollars while miles driven is the same or kept constant. The reason behind the change of the coefficient for age in the two models is multicolinearity. Since, we observed earlier that age and miles are correlated predictors when combined in a model their explanatory power and coefficient is expected to decrease is absolute magnitude. Meaning some of the age and miles explains the same relationship with price thus have higher coeffient when used individually as opposed to combined in a single model.}**
+
+* **\textcolor{blue}{ii) The obtained R-squared value for model C is 0.793 which means around 79\% of the variation in the prices of cars can be explained by a linear regression model with the age and miles as predictors as opposed to 75\% by model A and 68\% by model B.}**
+
+
+e)	Create an indicator variable for Accords, and then run three models with price as the response: 
+
+    - Model D = accord is the only predictor
+    - Model E = miles and accord are the only predictors
+    - Model F = add an interaction between miles and accord to Model E
+
+    i) Interpret accord in context in all three models: D, E, and F.  Explain how the coefficients and interpretations can be so different.
+    ii) Interpret the interaction term from Model F in context.
+    
+```{r}
+#creating indicator variable for accord
+carlot_accord <- carlot %>% 
+  mutate(accord = ifelse(model == "Accord", 1, 0))
+
+
+#Model D = accord is the only predictor
+lm_accord <- lm(price~accord, data = carlot_accord)
+summary(lm_accord)
+
+#Model E = miles and accord are the only predictors
+lm_miles_accord <- lm(price~miles+accord, data = carlot_accord)
+summary(lm_miles_accord)
+
+#Model F = add an interaction between miles and accord to Model E
+lm_miles_accord_int <- lm(price~miles+accord+miles:accord, data = carlot_accord)
+summary(lm_miles_accord_int)
+
+```
+
+* **\textcolor{blue}{i) In model D when accord is the only predictor, the average price of cars of model accord is 1.2922 thousand dollar lower compared to other models. For model E, the coefficient 2.527 means that the predicted price of cars that are of model Accord is 2.527 thousand dollars higher while the miles driven is kept constant. For model F, the coefficient 1.74475 means that the average price of a car of model Accord is 1.74475 thousand dollars higher as opposed to other models when the miles driven is 0.}**
+* **\textcolor{blue}{ii) The interaction term of 0.01151 means that for every extra thousand miles driven the predicted price will go down by \$101 dollars when the car is of model Accord as opposed to \$112 when the car is not of model Accord.}**
+
+f)	Create indicator variables for Golfs and Sonatas, and then run Model G, with price as the response and age, miles, golf, and sonata as predictors.  
+
+    i) Interpret sonata and golf in context.
+    ii) Use a nested F-test to determine if there’s a significant effect of car model.  State your conclusion in context, supported by a test statistic and p-value. 
+    iii) Do variance inflation factors indicate any issues in this analysis?
+    
+```{r}
+carlot_golf_sonata <- carlot_accord %>% 
+  mutate(sonata = ifelse(model == "Sonata", 1, 0)) %>% 
+  mutate(golf = ifelse(model == "Golf", 1, 0))
+
+lm_golf_sonata <- lm(price~age+miles+golf+sonata, data = carlot_golf_sonata)
+summary(lm_golf_sonata)
+
+anova(lm_golf_sonata, lm_age_miles)
+
+```
+
+* **\textcolor{blue}{i) The coefficient for sonata is -3.240622 which means that the predicted price of a car when it is of model Sonata is 3.24 thousand dollars lower as opposed to Accords when miles and age are kept constant. The coefficient for golf is -1.862947 which means that the predicted price of a car when it is of model Golf is 1.86 thousand dollars lower as opposed to Accords when miles and age are kept constant}**
+* **\textcolor{blue}{ii) Nested F-test: $H_O:$ lm\_age\_miles (reduced) model is enough to explain the response variable vs. $H_A$: lm\_golf\_sonata (full) model with indicator variables for Golf and Sonata is significantly better at explaining the response variable. The obtained (F(-2, 72) = 12.638, p = 2.061e-05 ***) suggest that a model with indicator variables for car model type is significantly better than a model with only age and miles for predictor variables. Therefore, we reject the null hypothesis and conclude that there’s a significant effect of car model in explaining the variability in prices.}**
+
+
